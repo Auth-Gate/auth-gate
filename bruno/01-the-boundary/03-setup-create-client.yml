@@ -35,7 +35,8 @@ runtime:
         });
 
         test("the key is returned once, here", function() {
-          expect(res.getBody().accessKey).to.be.a("string").and.not.empty;
+          const k = res.getBody().accessKey;
+          expect(typeof k === "string" && k.length > 0, "accessKey missing").to.equal(true);
         });
 
 settings:

@@ -20,6 +20,10 @@ runtime:
           expect(body).to.not.include("x-internal-access-key");
         });
 
+        test('body is exactly {"error":"unauthorized"}', function() {
+          expect(res.getBody()).to.deep.equal({ error: "unauthorized" });
+        });
+
 settings:
   encodeUrl: true
   timeout: 0

@@ -38,11 +38,13 @@ runtime:
 
         test("returns the id and a key, once", function() {
           expect(res.getBody().clientId).to.be.a("string").and.not.empty;
-          expect(res.getBody().accessKey).to.be.a("string").and.not.empty;
+          const k = res.getBody().accessKey;
+          expect(typeof k === "string" && k.length > 0, "accessKey missing").to.equal(true);
         });
 
         test("the client key is never the admin key", function() {
-          expect(res.getBody().accessKey).to.not.equal(bru.getEnvVar("adminKey"));
+          // Compared without values, so a failure never prints either key.
+          expect(res.getBody().accessKey === bru.getEnvVar("adminKey"), "client key equals admin key").to.equal(false);
         });
 
 settings:
