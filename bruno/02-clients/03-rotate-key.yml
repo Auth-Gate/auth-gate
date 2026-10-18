@@ -31,7 +31,9 @@ runtime:
         });
 
         test("a different key", function() {
-          expect(res.getBody().accessKey).to.be.a("string").and.not.equal(bru.getVar("previousClientKey"));
+          const k = res.getBody().accessKey;
+          expect(typeof k === "string" && k.length > 0, "accessKey missing").to.equal(true);
+          expect(k === bru.getVar("previousClientKey"), "rotated key equals previous key").to.equal(false);
         });
 
 settings:

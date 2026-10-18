@@ -23,6 +23,10 @@ runtime:
           expect(res.getStatus()).to.equal(401);
         });
 
+        test('body is exactly {"error":"unauthorized"}', function() {
+          expect(res.getBody()).to.deep.equal({ error: "unauthorized" });
+        });
+
 settings:
   encodeUrl: true
   timeout: 0
