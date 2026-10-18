@@ -1,35 +1,150 @@
 # auth-gate
 
-auth-gate will be a two-factor verification service: a PIN and WebAuthn passkeys,
-running on AWS Lambda, that other systems integrate with backend to backend through a
-per-client key. This is round 1: the workspace, its tooling and an empty pnpm workspace.
-The module itself is designed and built in round 2.
+auth-gate is a two-factor verification service for other backends: a PIN or a WebAuthn
+passkey, checked on AWS Lambda, answered with a short-lived token signed by AWS KMS.
+A calling backend (a *client*) already knows its user (a *subject*). It asks auth-gate to
+enroll and later verify a second factor, and attaches the returned token to whatever the
+check was for: a step-up before a sensitive action, the second step of a login, or a
+passkey-only login. Browsers never call auth-gate; only backends do.
+
+The design is in [`docs/superpowers/specs/`](docs/superpowers/specs/2026-10-18-auth-gate-module-design.md),
+and the reasons behind each choice are one-page memos in [`docs/memo/`](docs/memo/).
+
+## One base URL
+
+One Go binary runs as three Lambda functions behind one CloudFront distribution, which
+routes by path. Integrators see a single base URL, the distribution's `*.cloudfront.net`
+name or an optional custom domain (parameters `DomainName`, `CertificateArn`,
+`HostedZoneId`).
+
+| Path | Role | Credential |
+| --- | --- | --- |
+| `/api/clients*` | `admin` | `x-internal-access-key: <admin key>` |
+| `/.well-known/*` | `jwks` | none |
+| everything else | `verify` | `x-internal-access-key: <client key>` |
+
+The Function URLs behind the door refuse direct calls: CloudFront adds a secret
+`x-origin-verify` header and `verify` and `admin` answer 401 without it. See
+[one-door-cloudfront](docs/memo/one-door-cloudfront.md) and
+[three-roles-one-binary](docs/memo/three-roles-one-binary.md).
+
+## Credential model
+
+- The **admin key** (SSM SecureString, read at cold start) creates clients and rotates
+  their keys.
+- A **client key** (`ag_` plus 32 random bytes) identifies one calling backend. It is
+  returned once; only its SHA-256 is stored, and `clientId` is derived from it, never
+  taken from the body ([memo](docs/memo/client-key-is-a-hash-lookup.md)).
+- Rotating a client key keeps the previous key valid for 24 hours.
+- A client key on an admin route is a 401, and the 401 body never names the key or header.
+
+Each client registers its `rpId` and `origins`, so it can only verify passkeys for its
+own domains. A subject is an opaque string chosen by the client; ids containing `#` are
+rejected. PINs are argon2id hashed and locked after repeated failures.
+
+## The WebAuthn relay
+
+The browser runs `navigator.credentials.create/get`, but only against the client's own
+backend, which relays to auth-gate
+([memo](docs/memo/webauthn-without-a-browser.md)):
+
+```text
+browser ──► client backend ──► POST /api/webauthn/registrations ──► options
+browser ◄── client backend ◄──────────────────────────────────────┘
+browser (navigator.credentials.create) ──► attestation ──► client backend
+                        client backend ──► POST /api/webauthn/registrations/{id} ──► credentialId
+```
+
+Verification is the same shape: `POST /api/challenges`, then
+`POST /api/challenges/{id}/verify`. A PIN uses the same two calls
+([memo](docs/memo/pin-goes-through-a-challenge.md)). Challenges are single use, live five
+minutes and are scoped to the client ([memo](docs/memo/challenge-is-client-scoped.md)).
+
+## How a consumer verifies a token
+
+A successful verify returns `{token, expiresAt, factor}`. The token is an ES256 JWT.
+
+1. Fetch `<base URL>/.well-known/jwks.json` (cacheable for 300 s) and pick the key whose
+   `kid` matches the token header. Verify the signature.
+2. Check `iss` is your auth-gate base URL (`https://<host>`), `exp` has not passed, and
+   `aud` is your own `clientId`.
+3. Check `purpose` equals the action you are about to allow. A token issued for
+   `transfer` does not authorise `change-email`. `sub` is your `subjectId`, `amr` is
+   `["pin"]` or `["webauthn"]`, and `jti` is the challenge id.
+
+Tokens last `tokenTtlSec` (client default 300, max 900). KMS signs them, not a key in
+SSM ([memo](docs/memo/kms-signs-not-ssm.md)).
+
+## Rotating the signing key
+
+Order matters, because consumers cache the JWKS for 300 s:
+
+1. Create the new KMS key.
+2. Add its id to `KMS_KEY_IDS` on the `jwks` function, so it is published first.
+3. Switch `KMS_KEY_ID` on the `verify` function to the new key.
+4. After 15 minutes (the longest token lifetime) remove the old id from `KMS_KEY_IDS`.
+
+## Local development
+
+You need Go (`go 1.26.0` per `go.mod`), Docker, Node.js 22 or newer and pnpm. Put
+golangci-lint v2 on your `PATH` (`$(go env GOPATH)/bin`).
+
+```bash
+make dev    # DynamoDB Local on :8000 (docker compose) and all roles on :8080
+```
+
+`make dev` serves the three roles on one port under the prefixes `/verify`, `/admin` and
+`/jwks`, with an in-memory signer and the admin key `dev-admin`. The Bruno collection
+adds the prefix itself when `baseUrl` is a localhost URL. Run it from `bruno/`:
+
+```bash
+cd bruno/environments && cp local.example.yml local.yml
+cd .. && npx -y @usebruno/cli run --env local --sandbox=developer
+```
+
+`make check` runs `go vet`, `golangci-lint run` and `go test ./...`; `make test-store`
+also runs the store tests against DynamoDB Local.
+
+## Deploy
+
+The deploy and smoke steps are manual and run by a person with AWS access. They live in
+`scripts/setup-and-deploy/` and read `STAGE` (default `stg`), `AWS_PROFILE` and `AWS_REGION`:
+
+1. `00-cert.sh DOMAIN` (optional): request an ACM certificate in `us-east-1`.
+2. `01-ssm.sh`: write the random `admin-key` (SecureString) and `origin-verify` (plain
+   String; CloudFront cannot resolve a SecureString).
+3. `02-build.sh`: cross-compile `bin/bootstrap.zip` for linux/arm64.
+4. `03-deploy.sh`: deploy the SAM stack `auth-gate-<stage>` and print the one `BaseUrl`.
+   Without a custom domain the first deploy runs twice: it reads the distribution domain,
+   then redeploys to set `BASE_URL`, which avoids a CloudFormation dependency cycle.
+5. `04-smoke.sh`: run the Bruno collection, then `cmd/smoke`, a real WebAuthn round trip.
+6. `99-purge.sh`: tear the stage down.
 
 ## Repository layout
 
 ```text
-main/
-├── .claude/                  # statusline, hooks, /handoff command (Claude Code)
-├── docs/
-│   ├── infra/                # how the workspace works, and how to rebuild it
-│   ├── adr/                  # architecture decision records
-│   └── superpowers/          # specs and plans
-├── tools/wt/                 # worktree scripts
-├── cmd/auth-gate/            # Go entry point (placeholder until round 2)
-├── go.mod                    # Go module github.com/huy090202/auth-gate
-├── Makefile                  # build, test, test-store, lint, check, dev
-├── .golangci.yml             # golangci-lint v2 config
-├── docker-compose.yml        # local DynamoDB for store tests
-├── .github/workflows/ci.yml  # runs the gate
-├── .gitignore                # /local, node_modules/, bin/, .env files
-├── .npmrc                    # pnpm settings (defaults)
-├── package.json              # pnpm@10.13.1; scripts lint, test, check
-├── CLAUDE.md
-├── CONTRIBUTING.md
-└── LICENSE
+cmd/auth-gate/       ROLE selects the mux; Lambda adapter and local dev server
+cmd/smoke/           WebAuthn round trip against a deployed stage
+internal/platform/   foundation: dynamo, kms, ssm, httpx, config, log
+internal/auth/       domain: client, pin, webauthn, challenge, token, handlers
+infra/template.yaml  SAM: three functions, table, KMS key, CloudFront door
+scripts/setup-and-deploy/  the manual deploy and smoke steps
+bruno/               integration collection (the handoff for integrators)
+docs/memo/           one decision per file
+docs/infra/          the worktree tooling (below)
+docs/adr/  docs/superpowers/   ADRs for the tooling; specs and plans
+tools/wt/  .claude/  worktree scripts; Claude Code hooks and commands
 ```
 
-## Developing
+`internal/platform` never imports `internal/auth`.
+
+## Worktree tooling
+
+This repository is developed as a bare clone with one folder per branch. The scripts in
+`tools/wt/` and the workflow are documented in [`docs/infra/`](docs/infra/00-overview.md).
+A plain `git clone` also works for contributing.
+
+## Gate and tooling
 
 You need Node.js 22 or newer, pnpm 10.13.1, `jq` and `git`.
 
@@ -48,21 +163,6 @@ pnpm install
 pnpm run check   # lint, shell tests, then make check (Go)
 ```
 
-## Worktree workflow
-
-The repository is used as a bare clone with one sibling folder per branch:
-
-1. `.bare/` is the repository; `main/`, `orchestrator/` and `feat-<name>/` are worktrees.
-2. The `orchestrator` branch holds `BOARD.md` (who does what) and handoff files.
-3. `tools/wt/new.sh feat/<name>` creates `feat-<name>/`, installs, and links Claude data.
-4. Each feature runs its own Claude Code session; `/handoff` records where it stopped.
-5. `tools/wt/merge.sh feat/<name>` rebases, runs the gate, and fast-forwards `main`.
-6. `tools/wt/rm.sh feat/<name>` removes the worktree and its branches.
-
-A plain `git clone` also works for contributing. The full design is in
-[`docs/infra/`](docs/infra/00-overview.md).
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
-Smoke-tested the worktree lifecycle on 2026-10-18.
