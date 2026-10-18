@@ -392,7 +392,7 @@ func TestDERToRaw(t *testing.T) // sign a digest with crypto/ecdsa.SignASN1 → 
   ```
   `respond.go`: `writeServiceError(w, err)` maps: `id.ErrInvalid` → 400 `invalid_id`; `httpx.ErrBadJSON` → 400 `invalid_json`; `ErrPINRejected` → 400 `pin_rejected`; `VerificationFailed` → 400 `verification_failed` + `attemptsRemaining`; `Locked` → 423 `locked` + `lockedUntil`; `challenge.ErrGone` → 410 `challenge_gone`; `ErrWrongFactor` → 400 `wrong_factor`; `ErrFactorNotFound` → 404 `factor_not_found`; else 500 `internal` (logged).
 
-- [ ] **Step 1: Write failing tests (service level, real stores on dynamotest, LocalSigner)**
+- [x] **Step 1: Write failing tests (service level, real stores on dynamotest, LocalSigner)**
 
 ```go
 func TestPINVerifyIssuesTokenOnce(t *testing.T) // EnrollPIN "493817"; BeginChallenge(pin,"transfer"); VerifyPIN ok → Claims aud==client.ID, sub==subject, amr ["pin"], purpose "transfer", jti==challengeID, exp-iat==300; VerifyPIN again same challenge → ErrGone
@@ -400,8 +400,8 @@ func TestPINLockoutThroughService(t *testing.T)  // policy max 5 (challenge MaxA
 func TestWrongFactorAndMissingFactor(t *testing.T) // BeginChallenge(webauthn) for subject without credentials → ErrFactorNotFound; BeginChallenge(pin) then VerifyWebAuthn body → ErrWrongFactor (VerifyWebAuthn stubbed to the factor check in this task)
 ```
 
-- [ ] **Step 2: Run with endpoint** — Expected: FAIL. **Step 3: Implement service, handlers, respond.** **Step 4: Run** — PASS.
-- [ ] **Step 5: Commit** — `feat(service): pin enrollment, challenges and assertion tokens`
+- [x] **Step 2: Run with endpoint** — Expected: FAIL. **Step 3: Implement service, handlers, respond.** **Step 4: Run** — PASS.
+- [x] **Step 5: Commit** — `feat(service): pin enrollment, challenges and assertion tokens`
 
 ---
 
