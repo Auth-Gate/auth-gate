@@ -328,17 +328,17 @@ func TestTakeRegistrationIsSingleUse(t *testing.T) // Take ok, second Take ErrGo
   func VerifyWithJWKS(token string, jwks map[string]any) (Claims, error) // test-only helper; also used by cmd/smoke
   ```
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```go
 func TestIssueProducesExpectedHeaderAndClaims(t *testing.T) // decode header: alg ES256, kid "local-1"; payload: aud "cl_1", amr ["pin"], purpose "transfer", exp-iat == 300
 func TestJWKSRoundTrip(t *testing.T) // Issue with LocalSigner; JWKS(); VerifyWithJWKS → same Claims; flip one signature byte → error; kid not in set → error
 ```
 
-- [ ] **Step 2: Run `go test ./internal/auth/token/`** — Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — Expected: PASS.
-- [ ] **Step 5: Commit** — `feat(token): ES256 assertion tokens with a pluggable signer and JWKS`
+- [x] **Step 2: Run `go test ./internal/auth/token/`** — Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — Expected: PASS.
+- [x] **Step 5: Commit** — `feat(token): ES256 assertion tokens with a pluggable signer and JWKS`
 
 ---
 
