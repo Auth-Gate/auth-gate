@@ -27,9 +27,9 @@ Claude session, given only this folder, can rebuild the same setup for another p
 ### The picture
 
 ```text
-/home/work/auth-gate/                 # workspace root. NOT a checkout.
+<root>/                               # workspace root. NOT a checkout.
 ├── .bare/                            # the git repository (object db, refs, worktree metadata)
-│   └── claude -> ~/.claude/projects/-home-work-auth-gate--bare/
+│   └── claude -> ~/.claude/projects/<bare-key>/
 ├── .git                              # one line: "gitdir: ./.bare"
 ├── local/                            # the one real copy, gitignored, symlinked into every worktree
 ├── main/                             # worktree on branch main: product code, docs, tooling
@@ -37,8 +37,8 @@ Claude session, given only this folder, can rebuild the same setup for another p
 └── feat-<name>/                      # worktree on branch feat/<name>, forked from main
 ```
 
-`/home/work/auth-gate` is this project's root. For another project, substitute its own
-path everywhere (see `06-bootstrap-new-project.md`).
+`<root>` is the workspace root, for example `/srv/myproj`. `<bare-key>` is derived from
+it (`-srv-myproj--bare`). For a real project, substitute its own path everywhere (see `06-bootstrap-new-project.md`).
 
 ### Vocabulary
 

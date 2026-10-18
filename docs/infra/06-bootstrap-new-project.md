@@ -53,7 +53,15 @@ contains `.bare` and from `CLAUDE_PROJECTS_DIR` (default `~/.claude/projects`).
 
 ### Files to copy into the new project's `main`
 
-From this repository's `main`, copy, keeping the paths:
+The source is the public repository https://github.com/huy090202/auth-gate, branch
+`main`. It must be reachable from the machine (network access to GitHub). Fetch it into
+a temporary folder:
+
+```bash
+git clone --depth 1 --branch main https://github.com/huy090202/auth-gate.git /tmp/infra-src
+```
+
+Then copy these paths from `/tmp/infra-src` into the new project, keeping the paths:
 
 ```text
 tools/wt/                     # all scripts, including tools/wt/test/
@@ -74,6 +82,23 @@ The scripts must stay executable:
 ```bash
 chmod +x tools/wt/*.sh tools/wt/test/*.sh
 ```
+
+For example, into a checkout at `<dest>`:
+
+```bash
+src=/tmp/infra-src
+mkdir -p <dest>/tools <dest>/docs
+cp -R $src/tools/wt <dest>/tools/wt
+cp -R $src/.claude <dest>/.claude
+cp -R $src/docs/infra <dest>/docs/infra
+cp $src/CLAUDE.md $src/.gitignore <dest>/
+# only if <dest> has no pnpm setup yet:
+cp $src/package.json $src/pnpm-workspace.yaml $src/.npmrc <dest>/
+mkdir -p <dest>/.github/workflows && cp $src/.github/workflows/ci.yml <dest>/.github/workflows/
+```
+
+When `package.json` is copied, change `name`. Remove `/tmp/infra-src` when the setup is
+done.
 
 ### Variant A: fresh from a remote
 
@@ -109,6 +134,7 @@ chmod +x tools/wt/*.sh tools/wt/test/*.sh
 
    ```bash
    git -C <root>/orchestrator commit -am "chore(board): set orchestrator path"
+   git -C <root>/orchestrator push -u origin orchestrator
    ```
 
 4. **Link Claude data for the two base worktrees** (`new.sh` does this for features):
@@ -182,6 +208,7 @@ Start: a normal checkout at `<root>` with a `.git` directory, a remote, maybe a 
    cp -R ../main/.claude .claude
    # edit CLAUDE.md: set the orchestrator path in "Your own continuity"
    git add -A && git commit -m "chore: bootstrap orchestrator branch"
+   git push -u origin orchestrator
    cd ..
    ```
 
@@ -215,10 +242,17 @@ Start: a normal checkout at `<root>` with a `.git` directory, a remote, maybe a 
 
    ```bash
    git -C main push origin main
-   git -C orchestrator push -u origin orchestrator
    ```
 
-8. Continue with Variant A steps 6 and 7.
+   (`orchestrator` was pushed in step 4.)
+
+8. **Install dependencies** in the new `main` worktree:
+
+   ```bash
+   cd <root>/main && pnpm install
+   ```
+
+9. Continue with Variant A steps 6 and 7.
 
 ### Acceptance test
 

@@ -18,6 +18,8 @@ main/
 ├── packages/                 # pnpm workspace packages (empty in round 1)
 ├── apps/                     # deployable apps (empty in round 1)
 ├── .github/workflows/ci.yml  # runs the gate
+├── .gitignore                # /local, node_modules/, .env files
+├── .npmrc                    # pnpm settings (defaults)
 ├── package.json              # pnpm@10.13.1; scripts lint, typecheck, test, check
 ├── pnpm-workspace.yaml
 ├── CLAUDE.md

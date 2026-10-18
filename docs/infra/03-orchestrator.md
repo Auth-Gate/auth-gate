@@ -26,8 +26,8 @@ says:
 - Every action on a worktree is a fenced bash block the human pastes, using
   `../main/tools/wt/`. Never run the scripts yourself.
 - One feature per worktree. Directory name = branch name with `/` replaced by `-`.
-- Before printing `merge.sh`: the newest handoff must say the work is done, and the row
-  must be `review`. Otherwise say what is missing and stop.
+- Before printing `merge.sh`: the newest handoff's "Remaining" section must be empty or
+  say `none`, and the row must be `review`. Otherwise say what is missing and stop.
 - After `rm.sh` is confirmed: set the row to `merged` and commit.
 - Commit on the `orchestrator` branch after every BOARD or handoff change, with a
   `chore(board): ...` message. Uncommitted state is lost state.
@@ -107,7 +107,7 @@ Written by the feature session through `/handoff`:
 - ...
 
 ## Next command
-cd /home/work/auth-gate/feat-pin && claude
+cd <root>/feat-pin && claude
 ```
 
 "Done" means two things together: the BOARD row is `review` (set by `/handoff` when the
@@ -133,8 +133,8 @@ Push the branch when convenient (`git -C <root>/orchestrator push`); it is the b
 
 - Write or edit product code, in any worktree.
 - Run `new.sh`, `merge.sh`, `rm.sh` or any git command that changes another worktree.
-- Print `merge.sh` for a branch whose newest handoff does not say done, or whose row is
-  not `review`.
+- Print `merge.sh` for a branch whose newest handoff still lists remaining work, or whose
+  row is not `review`.
 - Leave a BOARD change uncommitted.
 - Merge `orchestrator` into `main`, or `main` into `orchestrator`.
 

@@ -25,7 +25,7 @@ From the docs (read on 2026-10-18) and checked on this machine:
 1. **Auto memory** lives at `~/.claude/projects/<key>/memory/`. For a git repository the
    key is derived from the repository, not the working directory, so all worktrees of
    one repository share one memory directory. With a bare layout, the key is the `.bare`
-   path: `-home-work-auth-gate--bare`.
+   path, for example `-srv-myproj--bare` for `/srv/myproj/.bare`.
    (https://code.claude.com/docs/en/memory, https://code.claude.com/docs/en/worktrees)
 2. **Transcripts** (`<session-id>.jsonl`) live under the key of the working directory, so
    each worktree gets its own transcript folder by default. `claude --resume` can still
@@ -38,7 +38,7 @@ From the docs (read on 2026-10-18) and checked on this machine:
    https://code.claude.com/docs/en/env-vars)
 
 A key is an absolute path with every non-alphanumeric character replaced by `-`:
-`/home/work/auth-gate/.bare` becomes `-home-work-auth-gate--bare` (the `/.` gives two
+`/srv/myproj/.bare` becomes `-srv-myproj--bare` (the `/.` gives two
 dashes). `tools/wt/lib.sh` implements this as `key_of`.
 
 ### The design
@@ -96,6 +96,7 @@ This file is the only bridge between the context percentage and the hooks.
 
 The files in `/tmp/claude-ctx/` are one small number per session. Nothing deletes them;
 they disappear when `/tmp` is cleared, and deleting them by hand at any time is safe.
+
 ### Context guard: `.claude/hooks/context-guard.sh`
 
 - **Event:** `UserPromptSubmit`, every prompt.

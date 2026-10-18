@@ -29,7 +29,7 @@ lookup, and sessions can reach each other's files with `../<dir>`.
 - Inside each worktree, `.git` is a file pointing at `.bare/worktrees/<dir>`. That is
   normal for worktrees.
 - `<bare-key>` is the absolute path of `.bare` with every non-alphanumeric character
-  replaced by `-`. For `/home/work/auth-gate/.bare` it is `-home-work-auth-gate--bare`.
+  replaced by `-`. For `/srv/myproj/.bare` it is `-srv-myproj--bare`.
 
 ### Rules
 
