@@ -211,7 +211,7 @@ func TestAuthenticateByHashAndRotation(t *testing.T)   // dynamotest; create →
   func (r Record) Verify(pin string) bool               // argon2.IDKey with r.Params, subtle.ConstantTimeCompare
   ```
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```go
 func TestValidate(t *testing.T) // 6-digit policy: "493817" ok; "12345" / "1234567" / "12a456" / "000000" / "123456" / "654321" / "987654" → ErrRejected; 4-digit policy: "1357" ok
@@ -219,10 +219,10 @@ func TestHashVerifyHonoursStoredParams(t *testing.T) // rec := Hash("493817"); r
 // rec.Params = Params{8192,1,1}; re-derive via a helper hashWith(pin, salt, params) → Verify true with the weaker params, proving params are read from the record
 ```
 
-- [ ] **Step 2: Run `go test ./internal/auth/pin/`** — Expected: FAIL.
-- [ ] **Step 3: Implement.** Expose `hashWith(pin string, salt []byte, p Params) []byte` unexported and used by both `Hash` and `Verify`.
-- [ ] **Step 4: Run** — Expected: PASS.
-- [ ] **Step 5: Commit** — `feat(pin): policy validation and argon2id records`
+- [x] **Step 2: Run `go test ./internal/auth/pin/`** — Expected: FAIL.
+- [x] **Step 3: Implement.** Expose `hashWith(pin string, salt []byte, p Params) []byte` unexported and used by both `Hash` and `Verify`.
+- [x] **Step 4: Run** — Expected: PASS.
+- [x] **Step 5: Commit** — `feat(pin): policy validation and argon2id records`
 
 ---
 
