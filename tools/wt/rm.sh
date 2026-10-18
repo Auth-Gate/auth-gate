@@ -31,6 +31,11 @@ git -C "$root" show-ref --verify -q "refs/heads/$branch" ||
   git -C "$root" show-ref --verify -q "refs/remotes/origin/$branch" ||
   [ -e "$root/$dir" ] || die "no such branch: $branch"
 
+if [ -e "$root/$dir" ]; then
+  [ "$(git -C "$root/$dir" branch --show-current)" = "$branch" ] ||
+    die "$dir does not have $branch checked out"
+fi
+
 if [ "$force" = 0 ]; then
   git -C "$main" branch --merged "$BASE_BRANCH" --format='%(refname:short)' | grep -qx "$branch" ||
     die "$branch is not merged into $BASE_BRANCH (use --force to discard it)"

@@ -57,6 +57,13 @@ key="$(cd "$dir" && bare_key)"
 mkdir -p "$CLAUDE_PROJECTS_DIR/$key"
 ln -sfn "$CLAUDE_PROJECTS_DIR/$key" "$dir/.bare/claude"
 
+step "Linking Claude data"
+(
+  cd "$dir"
+  "$here/claude-link.sh" "$dir/main"
+  "$here/claude-link.sh" "$dir/orchestrator"
+)
+
 step "Done: $dir"
 [ "$orch_new" = 0 ] || echo "Next: git -C $dir/orchestrator push -u origin orchestrator"
 echo "Next: cd $dir/main && pnpm install"

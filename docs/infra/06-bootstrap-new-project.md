@@ -58,10 +58,11 @@ The source is the public repository https://github.com/huy090202/auth-gate, bran
 a temporary folder:
 
 ```bash
-git clone --depth 1 --branch main https://github.com/huy090202/auth-gate.git /tmp/infra-src
+src="$(mktemp -d)"
+git clone --depth 1 --branch main https://github.com/huy090202/auth-gate.git "$src"
 ```
 
-Then copy these paths from `/tmp/infra-src` into the new project, keeping the paths:
+Then copy these paths from `$src` into the new project, keeping the paths:
 
 ```text
 tools/wt/                     # all scripts, including tools/wt/test/
@@ -86,18 +87,17 @@ chmod +x tools/wt/*.sh tools/wt/test/*.sh
 For example, into a checkout at `<dest>`:
 
 ```bash
-src=/tmp/infra-src
 mkdir -p <dest>/tools <dest>/docs
-cp -R $src/tools/wt <dest>/tools/wt
-cp -R $src/.claude <dest>/.claude
-cp -R $src/docs/infra <dest>/docs/infra
-cp $src/CLAUDE.md $src/.gitignore <dest>/
+cp -R "$src/tools/wt" <dest>/tools/wt
+cp -R "$src/.claude" <dest>/.claude
+cp -R "$src/docs/infra" <dest>/docs/infra
+cp "$src/CLAUDE.md" "$src/.gitignore" <dest>/
 # only if <dest> has no pnpm setup yet:
-cp $src/package.json $src/pnpm-workspace.yaml $src/.npmrc <dest>/
-mkdir -p <dest>/.github/workflows && cp $src/.github/workflows/ci.yml <dest>/.github/workflows/
+cp "$src/package.json" "$src/pnpm-workspace.yaml" "$src/.npmrc" <dest>/
+mkdir -p <dest>/.github/workflows && cp "$src/.github/workflows/ci.yml" <dest>/.github/workflows/
 ```
 
-When `package.json` is copied, change `name`. Remove `/tmp/infra-src` when the setup is
+When `package.json` is copied, change `name`. Remove `"$src"` when the setup is
 done.
 
 ### Variant A: fresh from a remote
@@ -137,19 +137,12 @@ done.
    git -C <root>/orchestrator push -u origin orchestrator
    ```
 
-4. **Link Claude data for the two base worktrees** (`new.sh` does this for features):
+4. **Remove the seed clone:** `rm -rf /tmp/seed`.
 
-   ```bash
-   <root>/main/tools/wt/claude-link.sh <root>/main
-   <root>/main/tools/wt/claude-link.sh <root>/orchestrator
-   ```
-
-5. **Remove the seed clone:** `rm -rf /tmp/seed`.
-
-6. **Create `local/` content** if needed (for example `local/rules.md`). It is private
+5. **Create `local/` content** if needed (for example `local/rules.md`). It is private
    and never committed.
 
-7. **Start the orchestrator and assign the first feature:**
+6. **Start the orchestrator and assign the first feature:**
 
    ```bash
    cd <root>/orchestrator && claude

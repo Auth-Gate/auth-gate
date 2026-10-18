@@ -14,14 +14,15 @@ main() {
   fi
   branch="$(git -C "$cwd" branch --show-current 2>/dev/null || true)"
   if [ "$branch" = "orchestrator" ]; then
-    cat "$orch/BOARD.md" 2>/dev/null || echo "No BOARD.md found."
-    return 0
-  fi
-  row="$(awk -F'|' -v d="$dir" '{ x = $2; gsub(/^ +| +$/, "", x); if (x == d) { print; exit } }' "$orch/BOARD.md" 2>/dev/null || true)"
-  if [ -n "$row" ]; then
-    echo "$row"
+    head -n 200 "$orch/BOARD.md" 2>/dev/null || echo "No BOARD.md found."
+    dir="orchestrator"
   else
-    echo "No BOARD row for $dir. Ask the orchestrator session for an assignment."
+    row="$(awk -F'|' -v d="$dir" '{ x = $2; gsub(/^ +| +$/, "", x); if (x == d) { print; exit } }' "$orch/BOARD.md" 2>/dev/null || true)"
+    if [ -n "$row" ]; then
+      echo "$row"
+    else
+      echo "No BOARD row for $dir. Ask the orchestrator session for an assignment."
+    fi
   fi
   f=""
   for c in "$orch/handoffs/$dir"/*.md; do

@@ -129,7 +129,9 @@ guard reads it on the next prompt. That is fine for thresholds this far from 100
 - **Input (stdin):** the hook JSON; it reads `cwd` (falls back to `$PWD`).
 - **Output (stdout, added to context):**
   - If `../orchestrator` does not exist: `Orchestrator worktree not found at ../orchestrator.`
-  - In the orchestrator worktree (branch `orchestrator`): the whole `BOARD.md`.
+  - In the orchestrator worktree (branch `orchestrator`): the first 200 lines of `BOARD.md`,
+    then the newest handoff in `handoffs/orchestrator/` the same way (first 120 lines,
+    or `No handoff yet.`).
   - Otherwise:
     1. The BOARD row whose first column equals the folder name, or
        `No BOARD row for <dir>. Ask the orchestrator session for an assignment.`
@@ -156,7 +158,9 @@ A project slash command. It tells Claude to:
 3. Update this worktree's BOARD row: Status (`active`, or `review` when done) and Last
    handoff. Add a row if there is none.
 4. Commit on orchestrator:
-   `git -C ../orchestrator add -A && git -C ../orchestrator commit -m "chore(board): handoff <branch> <timestamp>"`.
+   `git -C ../orchestrator add BOARD.md handoffs/<dir> && git -C ../orchestrator commit -m "chore(board): handoff <branch> <timestamp>"`
+   (orchestrator itself: `handoffs/orchestrator`). Never `add -A`: it would sweep up
+   another session's uncommitted edits.
 5. End the reply with `cd <abs worktree> && claude` on its own line.
 
 Run it when the work is done, when the guard warns, or before stopping for the day.

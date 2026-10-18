@@ -123,7 +123,7 @@ Every change to `BOARD.md` or `handoffs/` is followed by a commit on `orchestrat
 Feature sessions commit there too, from their own worktree:
 
 ```bash
-git -C ../orchestrator add -A
+git -C ../orchestrator add BOARD.md handoffs/feat-pin
 git -C ../orchestrator commit -m "chore(board): handoff feat/pin 2026-10-18-1640"
 ```
 
@@ -163,7 +163,7 @@ this is done.
 
 ### Known limits
 
-- **Concurrent commits.** Feature sessions commit on `orchestrator` with `add -A`. If two
+- **Concurrent commits.** Feature sessions commit on `orchestrator`, staging only `BOARD.md` and their own `handoffs/<dir>`. If two
   sessions hand off at the same moment, one commit can include the other's uncommitted
   BOARD edit. Nothing is lost (the other commit then finds nothing left to add, or adds
   the rest), but the commit messages may not match the content. Hand off one session at

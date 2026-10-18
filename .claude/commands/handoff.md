@@ -27,5 +27,5 @@ cd <abs worktree> && claude
 ```
 
 3. In `../orchestrator/BOARD.md`, update this worktree's row: set Status (`active`, `review` when the work is done, etc.) and set Last handoff to `<yyyy-mm-dd-hhmm>`. If the BOARD has no row for this worktree, add one (`| <dir> | <branch> | <task> | <status> | <timestamp> | |`).
-4. Commit on the orchestrator branch: `git -C ../orchestrator add -A && git -C ../orchestrator commit -m "chore(board): handoff <branch> <timestamp>"`.
+4. Commit on the orchestrator branch: stage only your own files, then commit: `git -C ../orchestrator add BOARD.md handoffs/<dir> && git -C ../orchestrator commit -m "chore(board): handoff <branch> <timestamp>"` (in the orchestrator worktree itself, stage `BOARD.md handoffs/orchestrator`).
 5. End your reply with the command to start the new session, on its own line: `cd <abs worktree> && claude`.

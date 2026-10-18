@@ -67,6 +67,9 @@ assert "init: orchestrator board" test -f "$tmp/ws/orchestrator/BOARD.md"
 assert "init: orchestrator gitignore" grep -qx '/local' "$tmp/ws/orchestrator/.gitignore"
 assert "init: local symlinks" test -L "$tmp/ws/main/local" -a -L "$tmp/ws/orchestrator/local"
 assert "init: .bare/claude link" test "$(readlink "$tmp/ws/.bare/claude")" = "$CLAUDE_PROJECTS_DIR/$(cd "$tmp/ws" && bare_key)"
+bk="$CLAUDE_PROJECTS_DIR/$(cd "$tmp/ws" && bare_key)"
+assert "init: main claude key linked" test "$(readlink "$CLAUDE_PROJECTS_DIR/$(key_of "$tmp/ws/main")")" = "$bk"
+assert "init: orchestrator claude key linked" test "$(readlink "$CLAUDE_PROJECTS_DIR/$(key_of "$tmp/ws/orchestrator")")" = "$bk"
 refute "init: idempotent refusal" "$wt/init.sh" "$tmp/remote.git" "$tmp/ws"
 
 # Run a command from inside the main worktree (stdout kept, stderr hidden).
@@ -93,7 +96,7 @@ git -C "$tmp/ws" branch -q -D feat/y
 leftovers=0
 for entry in "$CLAUDE_PROJECTS_DIR"/*; do
   case "${entry##*/}" in
-    "$(cd "$tmp/ws" && bare_key)" | "$(key_of "$tmp/ws/feat-x")") ;;
+    "$(cd "$tmp/ws" && bare_key)" | "$(key_of "$tmp/ws/main")" | "$(key_of "$tmp/ws/orchestrator")" | "$(key_of "$tmp/ws/feat-x")") ;;
     *) leftovers=$((leftovers + 1)) ;;
   esac
 done
@@ -162,6 +165,10 @@ git -C "$tmp/ws" fetch -q origin
 inmain ./tools/wt/rm.sh feat/z >/dev/null || nok "rm: feat/z removal failed"
 assert "rm: unmerged remote branch kept" git -C "$tmp/ws/main" ls-remote --exit-code --heads origin feat/z
 assert "rm: warned about kept remote" grep -q 'origin/feat/z' "$tmp/inmain.err"
+inmain ./tools/wt/new.sh feat/q --no-install >/dev/null || nok "rm: feat/q setup failed"
+echo keep >"$tmp/ws/feat-q/KEEP"
+refute "rm: refuses folder holding a different branch" inmain ./tools/wt/rm.sh feat-q --force
+assert "rm: wrong-branch folder intact" test -f "$tmp/ws/feat-q/KEEP" -a "$(git -C "$tmp/ws/feat-q" branch --show-current)" = feat/q
 refute "rm: nonexistent branch errors clearly" inmain ./tools/wt/rm.sh feat/nope
 assert "rm: nonexistent branch message" grep -q 'no such branch' "$tmp/inmain.err"
 refute "rm: refuses unmerged without --force" inmain ./tools/wt/rm.sh feat/pushed
