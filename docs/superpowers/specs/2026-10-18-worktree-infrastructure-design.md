@@ -342,7 +342,7 @@ BOARD change, since that branch is the state.
 is why its bootstrap had to copy it by hand). Contents:
 
 ```gitignore
-local/
+/local
 node_modules/
 .env
 .env.*

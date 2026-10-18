@@ -61,7 +61,7 @@ Expected: a path ending in `/bin/pnpm`, `10.13.1`, and `/home/ongdev2k2/.local/s
 - [ ] **Step 1: Write `.gitignore` with exactly the spec section 10 contents**
 
 ```gitignore
-local/
+/local
 node_modules/
 .env
 .env.*
