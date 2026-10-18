@@ -293,7 +293,7 @@ func TestPurgeSubjectRemovesPINAndCredentials(t *testing.T) // PutPIN + 2 PutCre
   ```
   Keys `CH#<clientId>#<id>/META`, `R#<clientId>#<id>/META`; both set `ttl = expiresAt.Unix()`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```go
 func TestAttemptExhaustsAndExpires(t *testing.T) // MaxAttempts 3: Attempt ×3 ok (Attempts 1,2,3), 4th ErrGone; another challenge with ExpiresAt = now-1s and no TTL deletion yet → Attempt ErrGone
@@ -301,10 +301,10 @@ func TestCompleteWinsExactlyOnce(t *testing.T)   // 8 goroutines call Complete o
 func TestTakeRegistrationIsSingleUse(t *testing.T) // Take ok, second Take ErrGone
 ```
 
-- [ ] **Step 2: Run with endpoint** — Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — Expected: PASS.
-- [ ] **Step 5: Commit** — `feat(challenge): single-use challenges and pending registrations`
+- [x] **Step 2: Run with endpoint** — Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — Expected: PASS.
+- [x] **Step 5: Commit** — `feat(challenge): single-use challenges and pending registrations`
 
 ---
 
