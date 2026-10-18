@@ -18,9 +18,18 @@ zone="${HOSTED_ZONE_ID:-}"
 [ -z "$domain" ] || [ -n "$cert" ] || die "DOMAIN_NAME needs CERTIFICATE_ARN (00-cert.sh)"
 [ -f "$ROOT/bin/bootstrap.zip" ] || die "bin/bootstrap.zip missing; run 02-build.sh"
 
+# Prints one stack output. A stack that does not exist yet (first deploy) yields
+# an empty value; any other AWS error is fatal and shown.
 output() {
-  aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
-    --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text 2>/dev/null || true
+  local out
+  if ! out="$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK" \
+    --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text 2>&1)"; then
+    case "$out" in
+      *"does not exist"*) return 0 ;;
+      *) die "describe-stacks failed: $out" ;;
+    esac
+  fi
+  printf '%s\n' "$out"
 }
 
 deploy() {

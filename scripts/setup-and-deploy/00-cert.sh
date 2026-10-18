@@ -15,12 +15,14 @@ arn="$(aws acm request-certificate --region us-east-1 \
   --query CertificateArn --output text)"
 
 # The validation record appears a few seconds after the request.
+rec=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   rec="$(aws acm describe-certificate --region us-east-1 --certificate-arn "$arn" \
     --query 'Certificate.DomainValidationOptions[0].ResourceRecord.[Name,Value]' --output text)"
   [ "$rec" != "None" ] && [ -n "$rec" ] && break
   sleep 3
 done
+{ [ "$rec" != "None" ] && [ -n "$rec" ]; } || die "validation record for $arn not available yet; check the ACM console"
 
 echo "Add this CNAME to the DNS of $domain (name, value):"
 echo "  $rec"

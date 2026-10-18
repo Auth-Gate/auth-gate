@@ -215,6 +215,9 @@ func (s *Service) VerifyPIN(ctx context.Context, c client.Client, challengeID, p
 	if !rec.Record.Verify(p) {
 		lockout := time.Duration(c.PinPolicy.LockoutSec) * time.Second
 		_, until, err := s.Factors.RecordPINFailure(ctx, c.ID, ch.SubjectID, c.PinPolicy.MaxAttempts, lockout, now)
+		if errors.Is(err, factor.ErrNotFound) {
+			return Token{}, ErrFactorNotFound
+		}
 		if err != nil {
 			return Token{}, err
 		}

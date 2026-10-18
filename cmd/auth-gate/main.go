@@ -123,7 +123,7 @@ func mustLocalSigner() *token.LocalSigner {
 	return s
 }
 
-// mustSecret reads an SSM SecureString at cold start; empty is fatal.
+// mustSecret reads an SSM parameter (SecureString or String) at cold start; empty is fatal.
 func mustSecret(ctx context.Context, awsCfg aws.Config, name string) string {
 	v, err := ssmx.GetSecureString(ctx, awsCfg, name)
 	if err != nil {
