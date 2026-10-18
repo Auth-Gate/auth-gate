@@ -127,9 +127,14 @@ func (s *dynamoStore) RecordPINFailure(ctx context.Context, clientID, subjectID 
 		TableName:                 aws.String(s.table),
 		Key:                       pinKey(clientID, subjectID),
 		UpdateExpression:          aws.String("SET lockedUntil = :until, failedCount = :zero"),
+		ConditionExpression:       aws.String("attribute_exists(pk)"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{":until": ts(until), ":zero": num(0)},
 	})
 	if err != nil {
+		var cond *types.ConditionalCheckFailedException
+		if errors.As(err, &cond) {
+			return 0, nil, ErrNotFound
+		}
 		return 0, nil, fmt.Errorf("lock pin: %w", err)
 	}
 	return count, &until, nil

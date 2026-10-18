@@ -13,6 +13,11 @@ aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$
 echo "deleted stack $STACK"
 
 for name in admin-key origin-verify; do
-  aws ssm delete-parameter --region "$REGION" --name "$PARAM_PREFIX/$name" 2>/dev/null \
-    && echo "deleted $PARAM_PREFIX/$name" || echo "skip $PARAM_PREFIX/$name (absent)"
+  if err="$(aws ssm delete-parameter --region "$REGION" --name "$PARAM_PREFIX/$name" 2>&1)"; then
+    echo "deleted $PARAM_PREFIX/$name"
+  elif [[ "$err" == *ParameterNotFound* ]]; then
+    echo "skip $PARAM_PREFIX/$name (absent)"
+  else
+    die "delete $PARAM_PREFIX/$name failed: $err"
+  fi
 done
