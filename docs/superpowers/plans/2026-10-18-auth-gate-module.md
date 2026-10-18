@@ -532,4 +532,4 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 - [x] **Step 1: Write each memo as: decision, context, alternatives rejected, consequences — ≤ 25 lines each.**
 - [x] **Step 2: Update README/CONTRIBUTING; `pnpm run check`** — green.
 - [x] **Step 3: Commit** — `docs: memos, readme and contributing for the auth-gate module`
-- [ ] **Step 4: Write the handoff (`/handoff`), set the BOARD row to `review`.**
+- [x] **Step 4: Write the handoff (`/handoff`), set the BOARD row to `review`.**
