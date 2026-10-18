@@ -31,7 +31,7 @@ make check    # go vet, golangci-lint run, go test ./...
 
 ## DynamoDB Local
 
-The store tests need DynamoDB Local. They skip without it, so a green `make check` alone
+The store tests need DynamoDB Local. Locally they skip unless `DYNAMO_ENDPOINT` is set (CI sets it), so a green `make check` alone
 does not exercise them; run them before changing anything in `internal/platform/dynamo`
 or the challenge and lockout code:
 
@@ -46,9 +46,11 @@ CI runs the same container as a service.
 
 `pnpm run check` must pass before a branch is merged. It runs, in order:
 
-- `pnpm run lint`: shellcheck over `tools/wt/` and `.claude/` scripts.
+- `pnpm run lint`: shellcheck over `scripts/setup-and-deploy/*.sh`, `tools/wt/*.sh`,
+  `tools/wt/test/*.sh` and the `.claude/` scripts.
+- `pnpm run test`: the shell tests, `tools/wt/test/hooks.sh` (statusline and hooks) and
+  `tools/wt/test/e2e.sh` (worktree scripts, end to end).
 - `make check`: `go vet`, `golangci-lint run`, `go test`.
-- `pnpm run test`: the hook test and the worktree end-to-end test.
 
 CI runs the same command on every push to `main` and on every pull request.
 
