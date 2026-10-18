@@ -499,10 +499,10 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
   - Outputs: `BaseUrl` (one), and `RawVerifyUrl`/`RawAdminUrl`/`RawJwksUrl` for the boundary test and debugging.
 - Scripts take `STAGE` (default `stg`) and `AWS_PROFILE` (default `credo-stg-ops`): `00-cert.sh DOMAIN` requests an ACM certificate in `us-east-1` with DNS validation and prints the CNAME to add and the ARN (optional step); `01-ssm.sh` writes random `admin-key` and `origin-verify` SecureStrings (refuses if they exist); `02-build.sh` cross-compiles `GOOS=linux GOARCH=arm64 CGO_ENABLED=0`; `03-deploy.sh` runs `sam deploy` with the optional domain parameters from env and prints `BaseUrl`; `99-purge.sh` deletes the stack and both SSM parameters after a typed confirmation.
 
-- [ ] **Step 1: Write the template and scripts; shellcheck is in the gate.**
-- [ ] **Step 2: `sam validate --lint -t infra/template.yaml`** — Expected: valid. `pnpm run check` — green.
+- [x] **Step 1: Write the template and scripts; shellcheck is in the gate.**
+- [x] **Step 2: `sam validate --lint -t infra/template.yaml`** — Expected: valid. `pnpm run check` — green.
 - [ ] **Step 3: HUMAN — optionally `00-cert.sh`, then `01-ssm.sh`, `02-build.sh`, `03-deploy.sh` to stg (CloudFront takes 5–10 min). Record `BaseUrl` and `RawVerifyUrl` for the Bruno `stg` environment (Task 13). Check: `curl -i $RawVerifyUrl/api/nope` → 401; `curl -i $BaseUrl/.well-known/jwks.json` → 200.**
-- [ ] **Step 4: Commit** — `feat(infra): sam template with three least-privilege functions behind one cloudfront door`
+- [x] **Step 4: Commit** — `feat(infra): sam template with three least-privilege functions behind one cloudfront door`
 
 ---
 
