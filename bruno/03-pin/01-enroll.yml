@@ -1,0 +1,41 @@
+info:
+  name: "Enroll PIN"
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/factors/pin"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "subjectId": "{{subjectId}}", "pin": "482916" }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("201 — PIN set", function() {
+          expect(res.getStatus()).to.equal(201);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Sets or replaces the subject's PIN and clears any lockout.
+  **Expected: 201 `{}`.**
+
+  The PIN must match the client's policy (6 digits here) and not be trivially
+  guessable (`111111`, `123456`, `654321` are a 400 `pin_rejected`).
+
+  > **On prd this replaces a real user's PIN.** Use a test subject id.

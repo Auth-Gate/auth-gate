@@ -1,0 +1,12 @@
+# Copy to stg.yml (gitignored) and fill in. 04-smoke.sh writes stg.yml for you
+# from the stack outputs and SSM, runs the collection, then deletes it.
+name: stg
+variables:
+  - name: baseUrl
+    value: https://REPLACE-with-stack-output-BaseUrl
+  - name: rawVerifyUrl
+    value: https://REPLACE-with-stack-output-RawVerifyUrl
+  - name: adminKey
+    value: REPLACE-from-ssm-/credo/auth-gate/stg/admin-key
+  - name: subjectId
+    value: bruno-user-1

@@ -1,0 +1,51 @@
+info:
+  name: "Rotate client key"
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/clients/{{clientId}}/keys"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{adminKey}}"
+  body:
+    type: json
+    data: |-
+      {}
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("previousClientKey", bru.getVar("clientKey"));
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 201) bru.setVar("clientKey", res.getBody().accessKey);
+    - type: tests
+      code: |-
+        test("201 — new key issued", function() {
+          expect(res.getStatus()).to.equal(201);
+        });
+
+        test("a different key", function() {
+          expect(res.getBody().accessKey).to.be.a("string").and.not.equal(bru.getVar("previousClientKey"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Issues a new key. **Expected: 201 `{accessKey}`.** Captures it as `clientKey`.
+
+  The new key works at once; the previous one keeps working for 24 h, then its
+  item expires by TTL. That window is for the client to redeploy, not a
+  revocation: to cut off a leaked key, rotate twice.
+
+  > **On prd** the client's old key starts its 24 h countdown. Coordinate first.

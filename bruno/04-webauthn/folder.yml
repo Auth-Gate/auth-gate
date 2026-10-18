@@ -1,0 +1,29 @@
+info:
+  name: WebAuthn
+  type: folder
+  seq: 4
+
+request: {}
+
+docs:
+  content: |-
+    ## Passkeys, relayed through the client backend
+
+    The browser still runs `navigator.credentials.create/get`, but it talks only to
+    the client's own backend, which relays to auth-gate (spec §6.4):
+
+    ```
+    browser -> client backend -> POST /api/webauthn/registrations -> options
+    browser <- client backend <-
+    browser (navigator.credentials.create) -> attestation -> client backend
+    client backend -> POST /api/webauthn/registrations/{id} -> credentialId
+    ```
+
+    Verification is the same with `POST /api/challenges` (`factor: webauthn`) and
+    `/api/challenges/{id}/verify` with `{credential}`.
+
+    Bruno has no authenticator, so this folder checks the shape of the options and
+    that garbage is refused. **The real round trip is `go run ./cmd/smoke`**, which
+    uses a virtual authenticator: register, challenge, verify, check the token
+    against JWKS.
+  type: text/markdown

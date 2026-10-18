@@ -1,0 +1,35 @@
+info:
+  name: "Setup: verify the challenge (200)"
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/challenges/{{challengeId}}/verify"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "pin": "482916" }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("200 — token issued", function() {
+          expect(res.getStatus()).to.equal(200);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  **Setup, expected: 200.** Uses the challenge once, correctly.

@@ -1,0 +1,45 @@
+info:
+  name: "Get client"
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/clients/{{clientId}}"
+  headers:
+    - name: X-Internal-Access-Key
+      value: "{{adminKey}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("200 — client found", function() {
+          expect(res.getStatus()).to.equal(200);
+        });
+
+        test("echoes the registration", function() {
+          const b = res.getBody();
+          expect(b.clientId).to.equal(bru.getVar("clientId"));
+          expect(b.rpId).to.equal("localhost");
+          expect(b.origins).to.be.an("array");
+          expect(b.pinPolicy.maxAttempts).to.equal(3);
+        });
+
+        test("never returns key material", function() {
+          const body = JSON.stringify(res.getBody()).toLowerCase();
+          expect(body).to.not.include("accesskey");
+          expect(body).to.not.include("hash");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Reads the client back. **Expected: 200**, and **no key material** in the body.
+
+  Harmless on prd.

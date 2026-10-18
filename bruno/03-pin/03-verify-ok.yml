@@ -1,0 +1,48 @@
+info:
+  name: "Verify the PIN"
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/challenges/{{challengeId}}/verify"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "pin": "482916" }
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 200) bru.setVar("token", res.getBody().token);
+    - type: tests
+      code: |-
+        test("200 — token issued", function() {
+          expect(res.getStatus()).to.equal(200);
+        });
+
+        test("factor is pin and a token is present", function() {
+          expect(res.getBody().factor).to.equal("pin");
+          expect(res.getBody().token.split(".").length).to.equal(3);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Verifies the challenge with the right PIN. **Expected: 200
+  `{token, expiresAt, factor: "pin"}`.** Captures `token`.
+
+  The token is an ES256 JWT: `sub` = subject, `aud` = this client, `purpose` =
+  the challenge's purpose, `jti` = the challenge id. The consumer checks the
+  signature against JWKS, then `aud` and `purpose` (`05-tokens`).

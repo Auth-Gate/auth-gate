@@ -1,0 +1,19 @@
+info:
+  name: Tokens
+  type: folder
+  seq: 5
+
+request: {}
+
+docs:
+  content: |-
+    ## What a consumer does with the token
+
+    1. Fetch `{{baseUrl}}/.well-known/jwks.json` (cacheable for 300 s).
+    2. Find the key by the token's `kid`; check the ES256 signature.
+    3. Check `exp`, then that `aud` is **you** and `purpose` is the action you are
+       about to perform. A token for `transfer` does not authorise `change-email`.
+
+    `02` does exactly that in an `after-response` script, with the token captured
+    by `03-pin/03-verify-ok`.
+  type: text/markdown

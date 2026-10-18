@@ -516,10 +516,10 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 - `cmd/smoke`: flags `-base-url -admin-key`; creates a client with `rpId smoke.local`, origin `https://smoke.local`; runs the full virtualwebauthn register→challenge→verify loop; verifies the token with `token.VerifyWithJWKS` fetched from `<base-url>/.well-known/jwks.json` and checks `iss == base-url`; exits 0 only if claims match. Prints one line per step.
 - `04-smoke.sh`: reads `BaseUrl` and `RawVerifyUrl` from the stack outputs and `admin-key` from SSM, runs `bru run bruno --env stg`, then `go run ./cmd/smoke …`; fails if `adminKey` equals `clientKey`.
 
-- [ ] **Step 1: Write the collection; run it against `make dev` with `local.example.yml` copied to `local.yml`** — `npx -y @usebruno/cli run bruno --env local` — Expected: all boundary requests fail as asserted, all others pass. If the CLI cannot read the OpenCollection YAML, record the exact error in the request docs and keep the collection for the Bruno app; the smoke then relies on `cmd/smoke` and a note in `04-smoke.sh`.
-- [ ] **Step 2: Write `cmd/smoke` and run it against `make dev`** — Expected: `ok token verified` as last line, exit 0.
+- [x] **Step 1: Write the collection; run it against `make dev` with `local.example.yml` copied to `local.yml`** — `npx -y @usebruno/cli run bruno --env local` — Expected: all boundary requests fail as asserted, all others pass. If the CLI cannot read the OpenCollection YAML, record the exact error in the request docs and keep the collection for the Bruno app; the smoke then relies on `cmd/smoke` and a note in `04-smoke.sh`.
+- [x] **Step 2: Write `cmd/smoke` and run it against `make dev`** — Expected: `ok token verified` as last line, exit 0.
 - [ ] **Step 3: HUMAN — `04-smoke.sh` against stg.**
-- [ ] **Step 4: Commit** — `feat(bruno): integration collection and webauthn smoke`
+- [x] **Step 4: Commit** — `feat(bruno): integration collection and webauthn smoke`
 
 ---
 

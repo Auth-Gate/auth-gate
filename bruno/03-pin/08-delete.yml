@@ -1,0 +1,32 @@
+info:
+  name: "Delete PIN"
+  type: http
+  seq: 8
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/api/factors/pin/{{subjectId}}"
+  headers:
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("204 — deleted", function() {
+          expect(res.getStatus()).to.equal(204);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Removes the subject's PIN. **Expected: 204**, also when there was none
+  (idempotent).
+
+  > **On prd** the user loses their PIN factor.

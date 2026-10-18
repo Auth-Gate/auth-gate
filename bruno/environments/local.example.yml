@@ -1,0 +1,10 @@
+name: local
+variables:
+  - name: baseUrl
+    value: http://localhost:8080
+  - name: rawVerifyUrl
+    value: ""
+  - name: adminKey
+    value: dev-admin
+  - name: subjectId
+    value: bruno-user-1
