@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -44,10 +45,9 @@ type FactorsView struct {
 	WebAuthn []CredentialView `json:"webauthn"`
 }
 
-// CredentialView is the public view of a passkey. Transports is never nil.
+// CredentialView is the public view of a passkey. LastUsedAt is null until first use.
 type CredentialView struct {
 	CredentialID string     `json:"credentialId"`
-	Transports   []string   `json:"transports"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	LastUsedAt   *time.Time `json:"lastUsedAt"`
 }
@@ -109,12 +109,8 @@ func (s *Service) ListFactors(ctx context.Context, c client.Client, subjectID st
 		return FactorsView{}, err
 	}
 	for _, cr := range creds {
-		tr := cr.Transports
-		if tr == nil {
-			tr = []string{}
-		}
 		view.WebAuthn = append(view.WebAuthn, CredentialView{
-			CredentialID: cr.ID, Transports: tr, CreatedAt: cr.CreatedAt, LastUsedAt: cr.LastUsedAt,
+			CredentialID: cr.ID, CreatedAt: cr.CreatedAt, LastUsedAt: cr.LastUsedAt,
 		})
 	}
 	return view, nil
@@ -208,8 +204,9 @@ func (s *Service) VerifyPIN(ctx context.Context, c client.Client, challengeID, p
 	if err := s.Challenges.Complete(ctx, c.ID, ch.ID, now); err != nil {
 		return Token{}, err
 	}
+	// The challenge is consumed; a failed reset must not cost the caller the token.
 	if err := s.Factors.ResetPINFailures(ctx, c.ID, ch.SubjectID); err != nil {
-		return Token{}, err
+		slog.Error("reset pin failures", "client", c.ID, "err", err)
 	}
 	return s.issue(ctx, c, ch, now)
 }
