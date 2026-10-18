@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -120,17 +121,19 @@ func (h *verify) verifyChallenge(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
+	hasCred := len(body.Credential) > 0 && string(body.Credential) != "null"
 	var (
 		tok service.Token
 		err error
 	)
 	switch {
-	case body.PIN != nil && len(body.Credential) == 0:
+	case body.PIN != nil && !hasCred:
 		tok, err = h.svc.VerifyPIN(r.Context(), c, r.PathValue("challengeId"), *body.PIN)
-	case body.PIN == nil && len(body.Credential) > 0:
+	case body.PIN == nil && hasCred:
 		tok, err = h.svc.VerifyWebAuthn(r.Context(), c, r.PathValue("challengeId"), body.Credential)
 	default:
-		err = service.ErrWrongFactor
+		// Exactly one of pin or credential is required.
+		err = fmt.Errorf("%w: exactly one of pin or credential", httpx.ErrBadJSON)
 	}
 	if err != nil {
 		writeServiceError(w, err)
