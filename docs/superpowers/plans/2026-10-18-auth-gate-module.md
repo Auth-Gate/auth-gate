@@ -354,14 +354,14 @@ func TestJWKSRoundTrip(t *testing.T) // Issue with LocalSigner; JWKS(); VerifyWi
   - `ssmx.GetSecureString(ctx, cfg aws.Config, name string) (string, error)` (`WithDecryption`).
   - `token.NewKMSSigner(c *kmsx.Client, keyID string) Signer` (`KeyID()` = keyID).
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```go
 func TestDERToRaw(t *testing.T) // sign a digest with crypto/ecdsa.SignASN1 → DERToRaw → ecdsa.Verify(pub, digest, r, s) true; r with a leading 0x00 (high bit set) still 32 bytes; truncated DER → error
 ```
 
-- [ ] **Step 2: Run** — Expected: FAIL. **Step 3: Implement.** **Step 4: Run** — PASS; `go build ./...` clean.
-- [ ] **Step 5: Commit** — `feat(platform): kms signing, ssm parameters, kms-backed token signer`
+- [x] **Step 2: Run** — Expected: FAIL. **Step 3: Implement.** **Step 4: Run** — PASS; `go build ./...` clean.
+- [x] **Step 5: Commit** — `feat(platform): kms signing, ssm parameters, kms-backed token signer`
 
 ---
 
