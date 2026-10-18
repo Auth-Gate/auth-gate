@@ -2,7 +2,7 @@
 # Shared helpers for tools/wt scripts. Source this file; do not execute it.
 set -euo pipefail
 
-BASE_BRANCH=main
+export BASE_BRANCH=main
 CLAUDE_PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
 export CLAUDE_PROJECTS_DIR
 
@@ -18,8 +18,9 @@ step() { printf '\033[36m==>\033[0m %s\n' "$*"; }
 wt_root() {
   local start dir
   local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[1]:-$0}")" && pwd -P)"
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[1]:-$0}")" 2>/dev/null && pwd -P)" || script_dir=""
   for start in "$PWD" "$script_dir"; do
+    [ -n "$start" ] || continue
     dir="$start"
     while [ "$dir" != "/" ]; do
       if [ -e "$dir/.bare" ]; then

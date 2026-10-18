@@ -25,6 +25,12 @@ assert() {
   if "$@" >/dev/null 2>&1; then ok "$msg"; else nok "$msg"; fi
 }
 
+refute() {
+  local msg="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then nok "$msg"; else ok "$msg"; fi
+}
+
 # --- Seeding: a throwaway remote whose main carries the tools under test ---
 seed_remote() {
   local seed="$tmp/seed"
@@ -44,6 +50,7 @@ seed_remote
 
 # --- lib.sh ---
 # shellcheck source=../lib.sh
+# shellcheck source-path=SCRIPTDIR
 . "$wt/lib.sh"
 assert "dir_of maps slash to dash" test "$(dir_of feat/x)" = "feat-x"
 assert "key_of replaces non-alphanumerics" test "$(key_of /a/b.c)" = "-a-b-c"
@@ -59,7 +66,7 @@ assert "init: orchestrator board" test -f "$tmp/ws/orchestrator/BOARD.md"
 assert "init: orchestrator gitignore" grep -qx '/local' "$tmp/ws/orchestrator/.gitignore"
 assert "init: local symlinks" test -L "$tmp/ws/main/local" -a -L "$tmp/ws/orchestrator/local"
 assert "init: .bare/claude link" test "$(readlink "$tmp/ws/.bare/claude")" = "$CLAUDE_PROJECTS_DIR/$(cd "$tmp/ws" && bare_key)"
-assert "init: idempotent refusal" ! "$wt/init.sh" "$tmp/remote.git" "$tmp/ws"
+refute "init: idempotent refusal" "$wt/init.sh" "$tmp/remote.git" "$tmp/ws"
 
 # --- new.sh --- (appended by a later task)
 # --- merge.sh --- (appended by a later task)
