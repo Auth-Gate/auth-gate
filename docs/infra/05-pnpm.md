@@ -75,7 +75,10 @@ fast-forwarding `main`, and CI runs it on every push to `main` and every pull re
 ```
 
 - `lint` runs shellcheck from the `shellcheck` dev dependency (an npm package that ships
-  the binary), so no system install is needed.
+  the binary), so no system install is needed. pnpm 10 does not run dependency install
+  scripts by default, so the binary is downloaded the first time `lint` runs in each new
+  worktree (a few `[INFO ] ShellCheck binary not found ... downloading` lines, then it is
+  cached in that worktree's `node_modules`). This needs network access once per worktree.
 - `typecheck` and the package part of `test` use `pnpm -r --if-present`: each workspace
   package that defines the script runs it; packages that do not are skipped. With no
   packages yet, they succeed trivially.

@@ -176,10 +176,23 @@ Run it when the work is done, when the guard warns, or before stopping for the d
    `~/.claude/projects/-home-work-auth-gate-feat-infra-tooling` a symlink to the `.bare`
    key, a `claude -p` transcript landed under `.bare/claude/`, and the link stayed a
    symlink. The symlinked project directory is honoured.
-3. **SessionStart injection.** Invoking the hook directly prints the BOARD row, the
-   latest handoff and the `More:` line, and exits 0. In headless `claude -p` the answer
-   matched the BOARD, but that does not prove injection. Interactive verification is
-   pending (plan Task 17).
+3. **SessionStart injection.** Verified interactively in a throwaway `feat/smoke`
+   worktree. Asked "what is your assignment?", the first reply restated the brief in full
+   with no tool calls, so the content came from the hook, not from Claude reading files.
+   In the orchestrator worktree the first reply likewise knew the BOARD.
 4. **Memory migration.** The planning session that ran before the conversion to the bare
    layout had its memory under `-home-work-auth-gate/`. It was copied with `cp -n` into
    the `.bare` key.
+5. **Statusline.** The status bar showed `feat/smoke | ctx 4% | $0.15`, so
+   `$CLAUDE_PROJECT_DIR` expands in the `statusLine` command, and the percentage file under
+   `/tmp/claude-ctx/` held the same number.
+6. **Context guard.** With `WARN=0` set by hand, the next prompt carried the warning: the
+   session mentioned the guard and `/handoff`. Restore `WARN=70` before committing; the
+   orchestrator also flags a modified `context-guard.sh` as a dirty worktree.
+7. **`/handoff`.** It wrote `handoffs/feat-smoke/<timestamp>.md` with an empty Remaining,
+   moved the BOARD row to `review`, committed on the orchestrator branch, and printed the
+   new-session command.
+8. **Merge and removal.** From the orchestrator session, "feat/smoke is done" produced a
+   check of the handoff and BOARD and then `merge.sh feat/smoke`. The merge rebased,
+   passed the gate, fast-forwarded and pushed `main`. `rm.sh feat/smoke` removed the
+   worktree and the local branch, and left the remote alone because it was never pushed.
