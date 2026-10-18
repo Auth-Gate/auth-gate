@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  auth-gate: one binary, three least-privilege functions (verify, admin, jwks)
+  behind one CloudFront distribution.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: stg
+    AllowedPattern: "[a-z0-9-]+"
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Optional custom domain (e.g. auth.example.com). Needs CertificateArn.
+  CertificateArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^arn:aws[a-zA-Z-]*:acm:us-east-1:\\d{12}:certificate/.+$"
+    Description: ACM certificate in us-east-1 for DomainName (00-cert.sh).
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: Optional Route 53 zone; when given, an alias record for DomainName is created.
+  DistributionBaseUrl:
+    Type: String
+    Default: ""
+    Description: >-
+      Set by 03-deploy.sh only, when DomainName is empty: https://<distribution domain>
+      read from the previous deploy. Breaks the Function -> Url -> Distribution ->
+      BASE_URL cycle (see 03-deploy.sh).
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref DomainName, ""]]
+  HasZone: !And
+    - !Condition HasDomain
+    - !Not [!Equals [!Ref HostedZoneId, ""]]
+  HasDistributionBaseUrl: !Not [!Equals [!Ref DistributionBaseUrl, ""]]
+
+Globals:
+  Function:
+    CodeUri: ../bin/bootstrap.zip
+    Handler: bootstrap
+    Runtime: provided.al2023
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 10
+    FunctionUrlConfig:
+      AuthType: NONE
+
+Resources:
+  Table:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub auth-gate-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  SigningKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub auth-gate ${Stage} ES256 token signing key
+      KeySpec: ECC_NIST_P256
+      KeyUsage: SIGN_VERIFY
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          # Account root delegates to IAM: who may sign is decided by the function policies below.
+          - Sid: AccountAdmin
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root" }
+            Action: kms:*
+            Resource: "*"
+
+  SigningKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/auth-gate-${Stage}
+      TargetKeyId: !Ref SigningKey
+
+  # verify: client routes. Signs tokens; never edits clients through a client route.
+  Verify:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-gate-${Stage}-verify
+      Environment:
+        Variables:
+          ROLE: verify
+          STAGE: !Ref Stage
+          TABLE_NAME: !Ref Table
+          KMS_KEY_ID: !GetAtt SigningKey.KeyId
+          ORIGIN_VERIFY_PARAM: !Sub /credo/auth-gate/${Stage}/origin-verify
+          BASE_URL: !If
+            - HasDomain
+            - !Sub https://${DomainName}
+            - !If
+              - HasDistributionBaseUrl
+              - !Ref DistributionBaseUrl
+              # First deploy only: 03-deploy.sh redeploys with the real distribution URL.
+              - https://pending.invalid
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+              Resource: !GetAtt Table.Arn
+            - Effect: Allow
+              Action: kms:Sign
+              Resource: !GetAtt SigningKey.Arn
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/credo/auth-gate/${Stage}/origin-verify"
+
+  # admin: client management. No KMS at all.
+  Admin:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-gate-${Stage}-admin
+      Environment:
+        Variables:
+          ROLE: admin
+          STAGE: !Ref Stage
+          TABLE_NAME: !Ref Table
+          ADMIN_KEY_PARAM: !Sub /credo/auth-gate/${Stage}/admin-key
+          ORIGIN_VERIFY_PARAM: !Sub /credo/auth-gate/${Stage}/origin-verify
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+              Resource: !GetAtt Table.Arn
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/credo/auth-gate/${Stage}/admin-key"
+                - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/credo/auth-gate/${Stage}/origin-verify"
+
+  # jwks: the only public route. Public keys only; no DynamoDB, no SSM.
+  Jwks:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub auth-gate-${Stage}-jwks
+      Environment:
+        Variables:
+          ROLE: jwks
+          STAGE: !Ref Stage
+          KMS_KEY_IDS: !GetAtt SigningKey.KeyId
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: kms:GetPublicKey
+              Resource: !GetAtt SigningKey.Arn
+
+  OriginCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub auth-gate-${Stage}-honour-origin
+        Comment: Honour origin Cache-Control (jwks sends 300 s)
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 3600
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig: { HeaderBehavior: none }
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: none }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Metadata:
+      cfn-lint:
+        config:
+          # CertificateArn defaults to "" but is only read under HasDomain;
+          # the linter resolves the default regardless.
+          ignore_checks: [W1030]
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub auth-gate ${Stage}
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200
+        Aliases: !If [HasDomain, [!Ref DomainName], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasDomain
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: verify
+            DomainName: !Select [2, !Split ["/", !GetAtt VerifyUrl.FunctionUrl]]
+            CustomOriginConfig: { OriginProtocolPolicy: https-only, OriginSSLProtocols: [TLSv1.2] }
+            OriginCustomHeaders:
+              - HeaderName: x-origin-verify
+                HeaderValue: !Sub "{{resolve:ssm:/credo/auth-gate/${Stage}/origin-verify}}"
+          - Id: admin
+            DomainName: !Select [2, !Split ["/", !GetAtt AdminUrl.FunctionUrl]]
+            CustomOriginConfig: { OriginProtocolPolicy: https-only, OriginSSLProtocols: [TLSv1.2] }
+            OriginCustomHeaders:
+              - HeaderName: x-origin-verify
+                HeaderValue: !Sub "{{resolve:ssm:/credo/auth-gate/${Stage}/origin-verify}}"
+          - Id: jwks
+            DomainName: !Select [2, !Split ["/", !GetAtt JwksUrl.FunctionUrl]]
+            CustomOriginConfig: { OriginProtocolPolicy: https-only, OriginSSLProtocols: [TLSv1.2] }
+            OriginCustomHeaders:
+              - HeaderName: x-origin-verify
+                HeaderValue: !Sub "{{resolve:ssm:/credo/auth-gate/${Stage}/origin-verify}}"
+        DefaultCacheBehavior:
+          TargetOriginId: verify
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+        CacheBehaviors:
+          - PathPattern: /.well-known/*
+            TargetOriginId: jwks
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: !Ref OriginCachePolicy
+          - PathPattern: /api/clients*
+            TargetOriginId: admin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+
+  DnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasZone
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2 # CloudFront's fixed alias zone
+
+Outputs:
+  BaseUrl:
+    Description: The one URL integrators use; token iss.
+    Value: !If [HasDomain, !Sub "https://${DomainName}", !Sub "https://${Distribution.DomainName}"]
+  DistributionDomain:
+    Description: Read by 03-deploy.sh to set DistributionBaseUrl.
+    Value: !GetAtt Distribution.DomainName
+  RawVerifyUrl:
+    Description: Direct verify Function URL (must answer 401 without CloudFront).
+    Value: !GetAtt VerifyUrl.FunctionUrl
+  RawAdminUrl:
+    Value: !GetAtt AdminUrl.FunctionUrl
+  RawJwksUrl:
+    Value: !GetAtt JwksUrl.FunctionUrl
