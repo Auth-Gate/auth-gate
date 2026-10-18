@@ -63,3 +63,4 @@ A plain `git clone` also works for contributing. The full design is in
 ## License
 
 MIT. See [LICENSE](LICENSE).
+Smoke-tested the worktree lifecycle on 2026-10-18.
