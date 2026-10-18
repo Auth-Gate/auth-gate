@@ -464,14 +464,14 @@ func TestWebAuthnRejectsRegressedSignCount(t *testing.T) // after one good asser
   `main.go`: `config.Load(os.Getenv)`; build deps; `ROLE=dev` serves all three under `/verify`, `/admin`, `/jwks` prefixes on `:PORT` with `LocalSigner`, `ADMIN_KEY` from env and no origin check (dev only); otherwise wrap `verify`/`admin` in `RequireKey("x-origin-verify", StaticKey(originSecret))` and `lambda.Start(httpadapter.NewFunctionURL(h).ProxyWithContext)`. Secrets on AWS: `ssmx.GetSecureString` for `AdminKeyParam` and `OriginVerifyParam` at cold start; empty → `log.Fatal`. `service.Issuer = cfg.BaseURL`.
   `make dev`: `docker compose up -d && ROLE=dev TABLE_NAME=authgate-dev DYNAMO_ENDPOINT=http://localhost:8000 SIGNER=local ADMIN_KEY=dev-admin PORT=8080 go run ./cmd/auth-gate` (main calls `dynamo.EnsureTable` when `DynamoEndpoint != ""`).
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```go
 func TestLoadRefusesIncompleteRoles(t *testing.T) // table: verify without KMS_KEY_ID and without SIGNER=local → error; verify without ORIGIN_VERIFY_PARAM or BASE_URL → error; admin without ADMIN_KEY_PARAM → error; jwks without KMS_KEY_IDS → error; ROLE=nope → error; ROLE=dev with nothing but TABLE_NAME → ok
 ```
 
-- [ ] **Step 2: Run** — FAIL. **Step 3: Implement config, admin, jwks, main, Makefile.** **Step 4: Run `make check`** — PASS.
-- [ ] **Step 5: Manual check: `make dev`, then**
+- [x] **Step 2: Run** — FAIL. **Step 3: Implement config, admin, jwks, main, Makefile.** **Step 4: Run `make check`** — PASS.
+- [x] **Step 5: Manual check: `make dev`, then**
 
 ```bash
 curl -s -XPOST localhost:8080/admin/api/clients -H 'x-internal-access-key: dev-admin' -d '{"name":"demo","rpId":"localhost","origins":["http://localhost:3000"]}'
@@ -481,7 +481,7 @@ curl -s localhost:8080/jwks/.well-known/jwks.json   # 200 one EC key
 curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized"}
 ```
 
-- [ ] **Step 6: Commit** — `feat: role-selected binary, admin and jwks roles, local dev server`
+- [x] **Step 6: Commit** — `feat: role-selected binary, admin and jwks roles, local dev server`
 
 ---
 

@@ -3,12 +3,14 @@ module github.com/huy090202/auth-gate
 go 1.26.0
 
 require (
+	github.com/aws/aws-lambda-go v1.55.1
 	github.com/aws/aws-sdk-go-v2 v1.47.3
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.9
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.70.3
 	github.com/aws/aws-sdk-go-v2/service/kms v1.61.4
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.3
+	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/descope/virtualwebauthn v1.0.5
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/oklog/ulid/v2 v2.1.2
