@@ -15,6 +15,11 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local
+        ports:
+          - 8000:8000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,5 +27,14 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          install-only: true
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
+        env:
+          DYNAMO_ENDPOINT: http://localhost:8000

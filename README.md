@@ -15,13 +15,15 @@ main/
 │   ├── adr/                  # architecture decision records
 │   └── superpowers/          # specs and plans
 ├── tools/wt/                 # worktree scripts
-├── packages/                 # pnpm workspace packages (empty in round 1)
-├── apps/                     # deployable apps (empty in round 1)
+├── cmd/auth-gate/            # Go entry point (placeholder until round 2)
+├── go.mod                    # Go module github.com/huy090202/auth-gate
+├── Makefile                  # build, test, test-store, lint, check, dev
+├── .golangci.yml             # golangci-lint v2 config
+├── docker-compose.yml        # local DynamoDB for store tests
 ├── .github/workflows/ci.yml  # runs the gate
-├── .gitignore                # /local, node_modules/, .env files
+├── .gitignore                # /local, node_modules/, bin/, .env files
 ├── .npmrc                    # pnpm settings (defaults)
-├── package.json              # pnpm@10.13.1; scripts lint, typecheck, test, check
-├── pnpm-workspace.yaml
+├── package.json              # pnpm@10.13.1; scripts lint, test, check
 ├── CLAUDE.md
 ├── CONTRIBUTING.md
 └── LICENSE
