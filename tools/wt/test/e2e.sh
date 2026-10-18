@@ -81,6 +81,15 @@ refute "new: no upstream yet" git -C "$tmp/ws/feat-x" rev-parse --abbrev-ref '@{
 before="$(git -C "$tmp/ws/main" worktree list | wc -l)"
 refute "new: refuses a branch already checked out" inmain ./tools/wt/new.sh feat/x --no-install
 assert "new: worktree list unchanged" test "$(git -C "$tmp/ws/main" worktree list | wc -l)" = "$before"
+# git's own rejection: branch checked out under a folder name new.sh would not guess
+git -C "$tmp/ws" branch feat/y main
+git -C "$tmp/ws" worktree add -q other-dir feat/y
+before="$(git -C "$tmp/ws/main" worktree list | wc -l)"
+refute "new: git rejects branch checked out elsewhere" inmain ./tools/wt/new.sh feat/y --no-install
+assert "new: no feat-y dir created" test ! -e "$tmp/ws/feat-y"
+assert "new: worktree count unchanged (elsewhere)" test "$(git -C "$tmp/ws/main" worktree list | wc -l)" = "$before"
+git -C "$tmp/ws" worktree remove other-dir
+git -C "$tmp/ws" branch -q -D feat/y
 leftovers=0
 for entry in "$CLAUDE_PROJECTS_DIR"/*; do
   case "${entry##*/}" in
@@ -107,17 +116,27 @@ assert "link: backup keeps content" test -f "$link".bak-*/old.jsonl
 assert "link: now a symlink" test "$(readlink "$link")" = "$target"
 
 # --- merge.sh ---
+# main advances after feat/x forked, so merge.sh must really rebase
+echo m >"$tmp/ws/main/MAINCHANGE"
+git -C "$tmp/ws/main" add MAINCHANGE
+git -C "$tmp/ws/main" commit -qm "feat: main moves on"
+main_head="$(git -C "$tmp/ws/main" rev-parse HEAD)"
 echo change >"$tmp/ws/feat-x/CHANGE"
 git -C "$tmp/ws/feat-x" add CHANGE
 git -C "$tmp/ws/feat-x" commit -qm "feat: change"
 echo dirty >"$tmp/ws/feat-x/DIRTY"
 refute "merge: refuses dirty worktree" inmain ./tools/wt/merge.sh feat/x
-assert "merge: main untouched after refusal" test "$(git -C "$tmp/ws/main" rev-list --count HEAD)" = 1
+assert "merge: dirty refusal names the dirty state" grep -q 'uncommitted changes' "$tmp/inmain.err"
+assert "merge: main untouched after refusal" test "$(git -C "$tmp/ws/main" rev-parse HEAD)" = "$main_head"
+refute "merge: refuses main itself" inmain ./tools/wt/merge.sh main
+refute "merge: refuses wrong branch in folder" inmain ./tools/wt/merge.sh feat-x
 rm "$tmp/ws/feat-x/DIRTY"
 refute "merge: gate failure stops the merge" bash -c "cd '$tmp/ws/main' && WT_GATE=false ./tools/wt/merge.sh feat/x"
+assert "merge: main HEAD unchanged after gate failure" test "$(git -C "$tmp/ws/main" rev-parse HEAD)" = "$main_head"
 inmain ./tools/wt/merge.sh feat/x >/dev/null || { nok "merge: merge run failed"; cat "$tmp/inmain.err"; }
 assert "merge: main fast-forwarded" test "$(git -C "$tmp/ws/main" rev-parse HEAD)" = "$(git -C "$tmp/ws/feat-x" rev-parse HEAD)"
 assert "merge: main pushed" test "$(git -C "$tmp/ws/main" rev-parse origin/main)" = "$(git -C "$tmp/ws/main" rev-parse HEAD)"
+assert "merge: feat-x was rebased onto main" git -C "$tmp/ws/main" merge-base --is-ancestor "$main_head" HEAD
 assert "merge: history is linear" test "$(git -C "$tmp/ws/main" rev-list --merges --count HEAD)" = 0
 
 # --- status.sh ---
@@ -126,10 +145,25 @@ git -C "$tmp/ws/feat-pushed" add P
 git -C "$tmp/ws/feat-pushed" commit -qm "feat: pushed-only change"
 out="$(inmain ./tools/wt/status.sh)" || nok "status: run failed"
 assert "status: lists worktrees" grep -q 'feat-x' <<<"$out"
-assert "status: shows ahead/behind" grep -q 'feat/pushed: ahead 1, behind 1 (vs main)' <<<"$out"
+assert "status: shows ahead/behind" grep -q 'feat/pushed: ahead 1, behind 2 (vs main)' <<<"$out"
 assert "status: shows board" grep -q '| Worktree |' <<<"$out"
 
 # --- rm.sh ---
+# remote branch with a commit not in main must survive a non-force rm
+git -C "$tmp/ws" branch feat/z main
+git -C "$tmp/ws" push -q origin feat/z
+git -C "$tmp/ws" worktree add -q feat-z feat/z
+echo z >"$tmp/ws/feat-z/Z"
+git -C "$tmp/ws/feat-z" add Z
+git -C "$tmp/ws/feat-z" commit -qm "feat: z only on remote"
+git -C "$tmp/ws/feat-z" push -q origin feat/z
+git -C "$tmp/ws/feat-z" reset -q --hard main # local now merged, remote is ahead
+git -C "$tmp/ws" fetch -q origin
+inmain ./tools/wt/rm.sh feat/z >/dev/null || nok "rm: feat/z removal failed"
+assert "rm: unmerged remote branch kept" git -C "$tmp/ws/main" ls-remote --exit-code --heads origin feat/z
+assert "rm: warned about kept remote" grep -q 'origin/feat/z' "$tmp/inmain.err"
+refute "rm: nonexistent branch errors clearly" inmain ./tools/wt/rm.sh feat/nope
+assert "rm: nonexistent branch message" grep -q 'no such branch' "$tmp/inmain.err"
 refute "rm: refuses unmerged without --force" inmain ./tools/wt/rm.sh feat/pushed
 assert "rm: unmerged still there" test -d "$tmp/ws/feat-pushed"
 inmain ./tools/wt/rm.sh feat/x >/dev/null || nok "rm: feat/x removal failed"

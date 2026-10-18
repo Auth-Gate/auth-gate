@@ -27,6 +27,10 @@ root="$(wt_root)"
 dir="$(dir_of "$branch")"
 main="$root/$BASE_BRANCH"
 
+git -C "$root" show-ref --verify -q "refs/heads/$branch" ||
+  git -C "$root" show-ref --verify -q "refs/remotes/origin/$branch" ||
+  [ -e "$root/$dir" ] || die "no such branch: $branch"
+
 if [ "$force" = 0 ]; then
   git -C "$main" branch --merged "$BASE_BRANCH" --format='%(refname:short)' | grep -qx "$branch" ||
     die "$branch is not merged into $BASE_BRANCH (use --force to discard it)"
@@ -54,8 +58,12 @@ if git -C "$root" show-ref --verify -q "refs/heads/$branch"; then
 fi
 
 if git -C "$root" show-ref --verify -q "refs/remotes/origin/$branch"; then
-  step "Deleting remote branch origin/$branch"
-  git -C "$root" push -q origin --delete "$branch"
+  if [ "$force" = 1 ] || git -C "$root" merge-base --is-ancestor "origin/$branch" "$BASE_BRANCH"; then
+    step "Deleting remote branch origin/$branch"
+    git -C "$root" push -q origin --delete "$branch"
+  else
+    warn "origin/$branch has commits not in $BASE_BRANCH; keeping it (use --force to delete)"
+  fi
 fi
 
 link="$CLAUDE_PROJECTS_DIR/$(key_of "$root/$dir")"

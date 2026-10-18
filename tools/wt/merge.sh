@@ -22,6 +22,7 @@ for arg in "$@"; do
   esac
 done
 [ -n "$branch" ] || die "$usage"
+[ "$branch" != "$BASE_BRANCH" ] || die "refusing to merge $BASE_BRANCH into itself"
 
 root="$(wt_root)"
 dir="$(dir_of "$branch")"
@@ -29,6 +30,8 @@ main="$root/$BASE_BRANCH"
 gate="${WT_GATE:-pnpm run check}"
 [ -d "$root/$dir" ] || die "no worktree at $root/$dir"
 [ -d "$main" ] || die "no worktree at $main"
+[ "$(git -C "$root/$dir" branch --show-current)" = "$branch" ] ||
+  die "$dir does not have $branch checked out"
 
 step "Checking worktrees are clean"
 [ -z "$(git -C "$root/$dir" status --porcelain)" ] || die "$dir has uncommitted changes"
@@ -44,7 +47,8 @@ if git -C "$main" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
 fi
 
 step "Rebasing $branch onto $BASE_BRANCH"
-git -C "$root/$dir" rebase "$BASE_BRANCH"
+git -C "$root/$dir" rebase "$BASE_BRANCH" ||
+  die "rebase conflict: resolve it in $root/$dir and re-run, or run: git -C $root/$dir rebase --abort"
 
 step "Running gate: $gate"
 (cd "$root/$dir" && eval "$gate")

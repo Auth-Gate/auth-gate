@@ -25,6 +25,11 @@ elif [ -d "$link" ]; then
     rmdir "$link"
   else
     backup="$link.bak-$(date +%Y%m%d-%H%M%S)"
+    n=0
+    while [ -e "$backup" ]; do
+      n=$((n + 1))
+      backup="$link.bak-$(date +%Y%m%d-%H%M%S)-$n"
+    done
     warn "existing Claude data moved to $backup"
     mv "$link" "$backup"
   fi
