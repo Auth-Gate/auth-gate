@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Delete stack auth-gate-$STAGE and both SSM parameters after a typed confirmation.
-# The table and the KMS key are retained by the template; remove them by hand if wanted.
 set -euo pipefail
 # shellcheck source=lib.sh
 # shellcheck source-path=SCRIPTDIR

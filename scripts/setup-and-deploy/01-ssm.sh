@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Write random admin-key and origin-verify SecureStrings. Refuses to overwrite.
+# Write random admin-key (SecureString) and origin-verify (String). Refuses to overwrite.
+# origin-verify is a plain String: CloudFront origin headers cannot resolve a
+# SecureString, and the value sits in clear text in the distribution config anyway.
+# Rotate: put a new value, rerun 03-deploy.sh, and the functions pick it up on cold start.
 set -euo pipefail
 # shellcheck source=lib.sh
 # shellcheck source-path=SCRIPTDIR
@@ -11,8 +14,9 @@ for name in admin-key origin-verify; do
   fi
 done
 
-for name in admin-key origin-verify; do
+for spec in admin-key:SecureString origin-verify:String; do
+  name="${spec%%:*}"
   aws ssm put-parameter --region "$REGION" --name "$PARAM_PREFIX/$name" \
-    --type SecureString --value "$(openssl rand -hex 32)" >/dev/null
-  echo "wrote $PARAM_PREFIX/$name"
+    --type "${spec#*:}" --value "$(openssl rand -hex 32)" >/dev/null
+  echo "wrote $PARAM_PREFIX/$name (${spec#*:})"
 done

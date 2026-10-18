@@ -51,8 +51,6 @@ Globals:
 Resources:
   Table:
     Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub auth-gate-${Stage}
       BillingMode: PAY_PER_REQUEST
@@ -70,8 +68,6 @@ Resources:
 
   SigningKey:
     Type: AWS::KMS::Key
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
     Properties:
       Description: !Sub auth-gate ${Stage} ES256 token signing key
       KeySpec: ECC_NIST_P256
@@ -150,6 +146,7 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:DeleteItem
                 - dynamodb:Query
+                - dynamodb:BatchWriteItem
               Resource: !GetAtt Table.Arn
             - Effect: Allow
               Action: ssm:GetParameter

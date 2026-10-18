@@ -88,7 +88,7 @@ All viewer headers except `Host` are forwarded (managed policy
 Direct calls to the Function URLs are refused: CloudFront adds a custom origin
 header `x-origin-verify: <secret>` and the `verify` and `admin` muxes answer
 `401 {"error":"unauthorized"}` when it is missing or wrong (constant-time
-compare, same body as a bad access key). The secret lives in SSM
+compare, same body as a bad access key). The secret lives in SSM (plain String)
 `/credo/auth-gate/<stage>/origin-verify` and is read at cold start. `jwks` does
 not check it: it is public anyway.
 
@@ -277,7 +277,8 @@ Config (env set by SAM): `ROLE`, `STAGE`, `TABLE_NAME`, `KMS_KEY_ID` (verify),
 `KMS_KEY_IDS` (jwks), `ADMIN_KEY_PARAM` (admin; SSM SecureString path
 `/credo/auth-gate/<stage>/admin-key`, read once at cold start, boot fails if
 empty), `ORIGIN_VERIFY_PARAM` (verify and admin; SSM path
-`/credo/auth-gate/<stage>/origin-verify`, same rules), `BASE_URL` (verify; the
+`/credo/auth-gate/<stage>/origin-verify`, a plain String because CloudFront
+origin headers cannot resolve a SecureString; read once at cold start), `BASE_URL` (verify; the
 token `iss`). `SIGNER=local` and `DYNAMO_ENDPOINT` are for local only; the
 origin-verify check is skipped only in `ROLE=dev`.
 
