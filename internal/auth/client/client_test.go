@@ -24,6 +24,9 @@ func TestCreateInputValidate(t *testing.T) {
 		{"ttl 901", func(in *client.CreateInput) { in.TokenTTLSec = ttl(901) }, true},
 		{"origin without scheme", func(in *client.CreateInput) { in.Origins = []string{"app.example.com"} }, true},
 		{"rpId not a suffix of origin host", func(in *client.CreateInput) { in.RPID = "other.com" }, true},
+		{"duplicate origin", func(in *client.CreateInput) {
+			in.Origins = []string{"https://app.example.com", "https://app.example.com"}
+		}, true},
 		{"rpId equals origin host", func(in *client.CreateInput) { in.RPID = "app.example.com" }, false},
 	}
 	for _, tc := range tests {

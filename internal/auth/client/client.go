@@ -75,7 +75,12 @@ func (in CreateInput) Validate() error {
 	if len(in.Origins) == 0 {
 		return bad("at least one origin is required")
 	}
+	seen := make(map[string]bool, len(in.Origins))
 	for _, o := range in.Origins {
+		if seen[o] {
+			return bad("duplicate origin %q", o)
+		}
+		seen[o] = true
 		u, err := url.Parse(o)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" ||
 			u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
@@ -86,8 +91,16 @@ func (in CreateInput) Validate() error {
 			return bad("rpId %q is not a suffix of origin host %q", in.RPID, host)
 		}
 	}
-	if p := in.PinPolicy; p != nil && (p.Length < 4 || p.Length > 8) {
-		return bad("pin length must be 4-8")
+	if p := in.PinPolicy; p != nil {
+		if p.Length != 0 && (p.Length < 4 || p.Length > 8) {
+			return bad("pin length must be 4-8")
+		}
+		if p.MaxAttempts < 0 || p.MaxAttempts > 10 {
+			return bad("pin maxAttempts must be 0-10")
+		}
+		if p.LockoutSec < 0 || p.LockoutSec > 86400 {
+			return bad("pin lockoutSec must be 0-86400")
+		}
 	}
 	if in.TokenTTLSec != nil && (*in.TokenTTLSec < 1 || *in.TokenTTLSec > maxTokenTTLSec) {
 		return bad("tokenTtlSec must be 1-%d", maxTokenTTLSec)
@@ -126,7 +139,17 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Client, string, e
 		KeyHashes:   []string{hash},
 	}
 	if in.PinPolicy != nil {
-		c.PinPolicy = *in.PinPolicy
+		p, d := *in.PinPolicy, DefaultPinPolicy()
+		if p.Length == 0 {
+			p.Length = d.Length
+		}
+		if p.MaxAttempts == 0 {
+			p.MaxAttempts = d.MaxAttempts
+		}
+		if p.LockoutSec == 0 {
+			p.LockoutSec = d.LockoutSec
+		}
+		c.PinPolicy = p
 	}
 	if in.TokenTTLSec != nil {
 		c.TokenTTLSec = *in.TokenTTLSec
