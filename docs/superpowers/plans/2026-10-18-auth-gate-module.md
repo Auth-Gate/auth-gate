@@ -76,24 +76,24 @@ docs/memo/*.md
 **Interfaces:**
 - Produces: `make check` = `go vet ./... && golangci-lint run && go test ./...`; `make test-store` = `docker compose up -d dynamodb && DYNAMO_ENDPOINT=http://localhost:8000 go test ./...`; `make dev` (filled in Task 11).
 
-- [ ] **Step 1: Copy spec and plan into `docs/superpowers/`**
+- [x] **Step 1: Copy spec and plan into `docs/superpowers/`**
 
 ```bash
 git show orchestrator:handoffs/feat-auth-gate/spec.md > docs/superpowers/specs/2026-10-18-auth-gate-module-design.md
 git show orchestrator:handoffs/feat-auth-gate/plan.md > docs/superpowers/plans/2026-10-18-auth-gate-module.md
 ```
 
-- [ ] **Step 2: `go mod init github.com/huy090202/auth-gate`; write `Makefile` with targets `build`, `test`, `test-store`, `lint`, `check`, `dev`; `.golangci.yml` v2 with default linters plus `errcheck`, `gosec`, `staticcheck`**
+- [x] **Step 2: `go mod init github.com/huy090202/auth-gate`; write `Makefile` with targets `build`, `test`, `test-store`, `lint`, `check`, `dev`; `.golangci.yml` v2 with default linters plus `errcheck`, `gosec`, `staticcheck`**
 
-- [ ] **Step 3: `docker-compose.yml` with one service `dynamodb` (`amazon/dynamodb-local`, `-jar DynamoDBLocal.jar -inMemory -sharedDb`, port 8000)**
+- [x] **Step 3: `docker-compose.yml` with one service `dynamodb` (`amazon/dynamodb-local`, `-jar DynamoDBLocal.jar -inMemory -sharedDb`, port 8000)**
 
-- [ ] **Step 4: Remove the empty pnpm workspace; `package.json` scripts: `lint` unchanged, `test` = round-1 shell tests, `check` = `pnpm run lint && pnpm run test && make check`**
+- [x] **Step 4: Remove the empty pnpm workspace; `package.json` scripts: `lint` unchanged, `test` = round-1 shell tests, `check` = `pnpm run lint && pnpm run test && make check`**
 
-- [ ] **Step 5: CI: add `actions/setup-go@v5` (`go-version-file: go.mod`), `golangci/golangci-lint-action@v8`, and a `services: dynamodb` container (`amazon/dynamodb-local`, port 8000) with `DYNAMO_ENDPOINT=http://localhost:8000` on the check step. `.gitignore`: add `bin/`, `.aws-sam/`**
+- [x] **Step 5: CI: add `actions/setup-go@v5` (`go-version-file: go.mod`), `golangci/golangci-lint-action@v8`, and a `services: dynamodb` container (`amazon/dynamodb-local`, port 8000) with `DYNAMO_ENDPOINT=http://localhost:8000` on the check step. `.gitignore`: add `bin/`, `.aws-sam/`**
 
-- [ ] **Step 6: Run `pnpm run check`** — Expected: green (shellcheck, shell tests, empty Go module).
+- [x] **Step 6: Run `pnpm run check`** — Expected: green (shellcheck, shell tests, empty Go module).
 
-- [ ] **Step 7: Commit** — `chore: land auth-gate spec and plan; convert repo to a Go module`
+- [x] **Step 7: Commit** — `chore: land auth-gate spec and plan; convert repo to a Go module`
 
 ---
 
@@ -111,7 +111,7 @@ git show orchestrator:handoffs/feat-auth-gate/plan.md > docs/superpowers/plans/2
   - `type KeyFunc func(ctx context.Context, key string) (context.Context, bool)`; `httpx.RequireKey(header string, fn KeyFunc) func(http.Handler) http.Handler` reading the named header, 401 on missing/false; `httpx.StaticKey(expected string) KeyFunc` using `crypto/subtle.ConstantTimeCompare`. The same middleware serves both the access key (`x-internal-access-key`) and the CloudFront origin check (`x-origin-verify`, outermost).
   - Routing uses Go's `http.ServeMux` method patterns (`"POST /api/factors/pin"`), which gives 404/405 for free; `RequireKey` wraps the whole mux so 401 precedes 404.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```go
 func TestValidateRejectsHashEmptyAndLong(t *testing.T)   // "a#b", "", strings.Repeat("x",257) → ErrInvalid; "user_1" → nil
@@ -124,10 +124,10 @@ func TestDecodeJSONRejectsMalformedAndWrongType(t *testing.T)
 // body `{"pin":123456}` into struct{Pin string} → errors.Is(err, ErrBadJSON); body `{` → ErrBadJSON
 ```
 
-- [ ] **Step 2: Run `go test ./internal/platform/...`** — Expected: FAIL, undefined symbols.
-- [ ] **Step 3: Implement the four files to the signatures above.**
-- [ ] **Step 4: Run `go test ./internal/platform/...`** — Expected: PASS.
-- [ ] **Step 5: Commit** — `feat(platform): ids, json envelope and access-key middleware`
+- [x] **Step 2: Run `go test ./internal/platform/...`** — Expected: FAIL, undefined symbols.
+- [x] **Step 3: Implement the four files to the signatures above.**
+- [x] **Step 4: Run `go test ./internal/platform/...`** — Expected: PASS.
+- [x] **Step 5: Commit** — `feat(platform): ids, json envelope and access-key middleware`
 
 ---
 
