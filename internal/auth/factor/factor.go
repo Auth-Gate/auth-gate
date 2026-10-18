@@ -29,8 +29,11 @@ type Credential struct {
 	AAGUID      []byte
 	Transports  []string
 	DisplayName string
-	CreatedAt   time.Time
-	LastUsedAt  *time.Time
+	// BackupEligible and BackupState are the authenticator flags go-webauthn checks on login.
+	BackupEligible bool
+	BackupState    bool
+	CreatedAt      time.Time
+	LastUsedAt     *time.Time
 }
 
 // Store persists PIN and credential items.
@@ -51,7 +54,8 @@ type Store interface {
 	// ListCredentials never returns a nil slice on success.
 	ListCredentials(ctx context.Context, clientID, subjectID string) ([]Credential, error)
 	GetCredential(ctx context.Context, clientID, subjectID, credentialID string) (Credential, error)
-	UpdateCredentialUse(ctx context.Context, clientID, subjectID, credentialID string, signCount uint32, now time.Time) error
+	// UpdateCredentialUse records a login: the new sign count, backup state and time.
+	UpdateCredentialUse(ctx context.Context, clientID, subjectID, credentialID string, signCount uint32, backupState bool, now time.Time) error
 	DeleteCredential(ctx context.Context, clientID, subjectID, credentialID string) error
 	// PurgeSubject deletes every item under the subject's partition.
 	PurgeSubject(ctx context.Context, clientID, subjectID string) error

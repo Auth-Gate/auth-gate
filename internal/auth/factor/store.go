@@ -159,6 +159,8 @@ func (s *dynamoStore) PutCredential(ctx context.Context, clientID, subjectID str
 	item["publicKey"] = bin(c.PublicKey)
 	item["signCount"] = num(int64(c.SignCount))
 	item["createdAt"] = ts(c.CreatedAt)
+	item["backupEligible"] = &types.AttributeValueMemberBOOL{Value: c.BackupEligible}
+	item["backupState"] = &types.AttributeValueMemberBOOL{Value: c.BackupState}
 	if len(c.AAGUID) > 0 {
 		item["aaguid"] = bin(c.AAGUID)
 	}
@@ -212,13 +214,13 @@ func (s *dynamoStore) GetCredential(ctx context.Context, clientID, subjectID, cr
 	return credFromItem(out.Item)
 }
 
-func (s *dynamoStore) UpdateCredentialUse(ctx context.Context, clientID, subjectID, credentialID string, signCount uint32, now time.Time) error {
+func (s *dynamoStore) UpdateCredentialUse(ctx context.Context, clientID, subjectID, credentialID string, signCount uint32, backupState bool, now time.Time) error {
 	_, err := s.c.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                 aws.String(s.table),
 		Key:                       credKey(clientID, subjectID, credentialID),
-		UpdateExpression:          aws.String("SET signCount = :sc, lastUsedAt = :at"),
+		UpdateExpression:          aws.String("SET signCount = :sc, backupState = :bs, lastUsedAt = :at"),
 		ConditionExpression:       aws.String("attribute_exists(pk)"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{":sc": num(int64(signCount)), ":at": ts(now)},
+		ExpressionAttributeValues: map[string]types.AttributeValue{":sc": num(int64(signCount)), ":bs": &types.AttributeValueMemberBOOL{Value: backupState}, ":at": ts(now)},
 	})
 	if err != nil {
 		var cond *types.ConditionalCheckFailedException
@@ -289,15 +291,24 @@ func credFromItem(it map[string]types.AttributeValue) (Credential, error) {
 		return Credential{}, fmt.Errorf("credential: %w", err)
 	}
 	return Credential{
-		ID:          getS(it, "credentialId"),
-		PublicKey:   getB(it, "publicKey"),
-		SignCount:   getU[uint32](it, "signCount", 32),
-		AAGUID:      getB(it, "aaguid"),
-		Transports:  getSS(it, "transports"),
-		DisplayName: getS(it, "displayName"),
-		CreatedAt:   created,
-		LastUsedAt:  used,
+		ID:             getS(it, "credentialId"),
+		PublicKey:      getB(it, "publicKey"),
+		SignCount:      getU[uint32](it, "signCount", 32),
+		AAGUID:         getB(it, "aaguid"),
+		Transports:     getSS(it, "transports"),
+		DisplayName:    getS(it, "displayName"),
+		BackupEligible: getBool(it, "backupEligible"),
+		BackupState:    getBool(it, "backupState"),
+		CreatedAt:      created,
+		LastUsedAt:     used,
 	}, nil
+}
+
+func getBool(it map[string]types.AttributeValue, k string) bool {
+	if v, ok := it[k].(*types.AttributeValueMemberBOOL); ok {
+		return v.Value
+	}
+	return false
 }
 
 func getS(it map[string]types.AttributeValue, k string) string {
