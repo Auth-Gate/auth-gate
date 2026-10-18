@@ -143,9 +143,9 @@ func TestDecodeJSONRejectsMalformedAndWrongType(t *testing.T)
   - `dynamo.Key(pk, sk string) map[string]types.AttributeValue`.
   - `dynamotest.NewTable(t *testing.T) (*dynamodb.Client, string)` — `t.Skip` when `DYNAMO_ENDPOINT` is unset; otherwise creates `authgate-test-<ulid>` and deletes it in `t.Cleanup`.
 
-- [ ] **Step 1: Implement both files.** No unit test of its own: the helper is exercised by every store test from Task 3 on.
-- [ ] **Step 2: `go vet ./... && go build ./...`** — Expected: clean.
-- [ ] **Step 3: Commit** — `feat(platform): dynamodb client and test table helper`
+- [x] **Step 1: Implement both files.** No unit test of its own: the helper is exercised by every store test from Task 3 on.
+- [x] **Step 2: `go vet ./... && go build ./...`** — Expected: clean.
+- [x] **Step 3: Commit** — `feat(platform): dynamodb client and test table helper`
 
 ---
 
