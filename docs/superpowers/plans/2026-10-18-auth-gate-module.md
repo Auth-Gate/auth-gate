@@ -180,7 +180,7 @@ func TestDecodeJSONRejectsMalformedAndWrongType(t *testing.T)
   ```
   Items: `C#<id>/META`, `K#<hash>/META` with `clientId`, `createdAt`, optional `ttl` (unix seconds). Rotation needs the active hashes: store them on the client item as `keyHashes []string`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```go
 func TestCreateInputValidate(t *testing.T) // table: ok; tokenTtlSec 901 → ErrInvalid; origin "app.example.com" (no scheme) → ErrInvalid; rpId "other.com" for origin https://app.example.com → ErrInvalid; rpId "example.com" for https://app.example.com → ok
@@ -188,10 +188,10 @@ func TestAuthenticateByHashAndRotation(t *testing.T)   // dynamotest; create →
 // RotateKey → new raw works; old raw still works; svc.Now = +25h → old raw ErrUnauthorized although the item exists; new still works
 ```
 
-- [ ] **Step 2: Run `DYNAMO_ENDPOINT=http://localhost:8000 go test ./internal/auth/client/`** (after `docker compose up -d`) — Expected: FAIL.
-- [ ] **Step 3: Implement to the signatures above.**
-- [ ] **Step 4: Run again** — Expected: PASS. Also `go test ./internal/auth/client/` without the endpoint — Expected: validate test PASS, store test SKIP.
-- [ ] **Step 5: Commit** — `feat(client): registry with hashed per-client access keys`
+- [x] **Step 2: Run `DYNAMO_ENDPOINT=http://localhost:8000 go test ./internal/auth/client/`** (after `docker compose up -d`) — Expected: FAIL.
+- [x] **Step 3: Implement to the signatures above.**
+- [x] **Step 4: Run again** — Expected: PASS. Also `go test ./internal/auth/client/` without the endpoint — Expected: validate test PASS, store test SKIP.
+- [x] **Step 5: Commit** — `feat(client): registry with hashed per-client access keys`
 
 ---
 
