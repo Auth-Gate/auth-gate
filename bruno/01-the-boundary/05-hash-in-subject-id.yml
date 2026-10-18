@@ -1,0 +1,43 @@
+info:
+  name: "# in subjectId (400)"
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/factors/pin"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "subjectId": "a#b", "pin": "482916" }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("400 — rejected before storage", function() {
+          expect(res.getStatus()).to.equal(400);
+        });
+
+        test("error is invalid_id", function() {
+          expect(res.getBody().error).to.equal("invalid_id");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Enrolls a PIN for subject `a#b`. **Expected: 400 `invalid_id`.**
+
+  Storage keys are built as `S#<client>#<subject>`. A `#` inside an id could make
+  two different (client, subject) pairs collide on one key, so any id with `#` is
+  rejected before it reaches storage. Harmless on prd: nothing is written.

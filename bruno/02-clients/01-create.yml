@@ -1,0 +1,68 @@
+info:
+  name: "Create client"
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/clients"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{adminKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "bruno demo",
+        "rpId": "localhost",
+        "origins": ["http://localhost:3000"],
+        "pinPolicy": { "length": 6, "maxAttempts": 3, "lockoutSec": 60 },
+        "tokenTtlSec": 300
+      }
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 201) {
+          bru.setVar("clientKey", res.getBody().accessKey);
+          bru.setVar("clientId", res.getBody().clientId);
+        }
+    - type: tests
+      code: |-
+        test("201 — client created", function() {
+          expect(res.getStatus()).to.equal(201);
+        });
+
+        test("returns the id and a key, once", function() {
+          expect(res.getBody().clientId).to.be.a("string").and.not.empty;
+          expect(res.getBody().accessKey).to.be.a("string").and.not.empty;
+        });
+
+        test("the client key is never the admin key", function() {
+          expect(res.getBody().accessKey).to.not.equal(bru.getEnvVar("adminKey"));
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Registers a client. **Expected: 201 `{clientId, accessKey}`.**
+
+  The PIN policy here (`maxAttempts: 3`, `lockoutSec: 60`) is deliberately
+  small so `03-pin` can demonstrate the lockout in three requests; the default
+  is 6 digits, 5 attempts, 900 s.
+
+  - `rpId` / `origins` bind passkeys: auth-gate checks `rpId` and `origin` in
+    every attestation and assertion against these, so a client can only verify
+    passkeys for its own domains.
+  - `tokenTtlSec` defaults to 300, max 900.
+
+  > **On prd this creates a real client** that cannot be deleted in v1, and its
+  > key is shown only in this response.

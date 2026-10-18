@@ -1,0 +1,48 @@
+info:
+  name: "Open a PIN challenge"
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/challenges"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "subjectId": "{{subjectId}}", "purpose": "transfer", "factor": "pin" }
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 201) bru.setVar("challengeId", res.getBody().challengeId);
+    - type: tests
+      code: |-
+        test("201 — challenge opened", function() {
+          expect(res.getStatus()).to.equal(201);
+        });
+
+        test("no publicKey for a PIN challenge", function() {
+          expect(res.getBody().challengeId).to.be.a("string").and.not.empty;
+          expect(res.getBody().publicKey).to.be.undefined;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Opens a challenge for `purpose: transfer`. **Expected: 201
+  `{challengeId, expiresAt}`**, no `publicKey` (that is only for WebAuthn).
+  Captures `challengeId`.
+
+  A subject without a PIN is a 404 `factor_not_found`; a locked subject is a 423.
+  Harmless on prd: it expires on its own.

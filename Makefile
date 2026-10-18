@@ -19,4 +19,4 @@ check:
 	go test ./...
 
 dev:
-	docker compose up -d && ROLE=dev TABLE_NAME=authgate-dev DYNAMO_ENDPOINT=http://localhost:8000 SIGNER=local ADMIN_KEY=dev-admin PORT=8080 go run ./cmd/auth-gate
+	docker compose up -d && ROLE=dev TABLE_NAME=authgate-dev DYNAMO_ENDPOINT=http://localhost:8000 SIGNER=local ADMIN_KEY=dev-admin PORT=8080 BASE_URL=http://localhost:8080 go run ./cmd/auth-gate

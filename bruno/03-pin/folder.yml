@@ -1,0 +1,20 @@
+info:
+  name: PIN
+  type: folder
+  seq: 3
+
+request: {}
+
+docs:
+  content: |-
+    ## PIN, always through a challenge
+
+    A client never sends a PIN "for nothing": it opens a challenge with a
+    `purpose`, then verifies the challenge. Both factors share that shape, every
+    verification is single-use and counted, and the token carries the purpose.
+    Memo: `pin-goes-through-a-challenge`.
+
+    `02-challenge` captures `challengeId`; `03-verify-ok` captures `token`, which
+    `05-tokens` verifies. `05`–`07` spend the client's three attempts and end in a
+    423 lockout; `08` deletes the PIN.
+  type: text/markdown

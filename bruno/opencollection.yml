@@ -1,0 +1,99 @@
+opencollection: 1.0.0
+
+info:
+  name: "[External] Auth Gate (Lambda)"
+
+request:
+  scripts:
+    - type: before-request
+      code: |-
+        // `make dev` serves all three roles on one port, under /admin, /verify and
+        // /jwks. On AWS, CloudFront routes by path instead. When baseUrl is a
+        // localhost URL, prefix the path the way CloudFront would route it, so
+        // every request below is written once, against the deployed shape.
+        const base = String(bru.getEnvVar("baseUrl") || "").replace(/\/+$/, "");
+        const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base);
+        if (isLocal) {
+          const url = req.getUrl();
+          let path = null;
+          if (url.startsWith("{{baseUrl}}")) path = url.slice("{{baseUrl}}".length);
+          else if (url.startsWith(base)) path = url.slice(base.length);
+          if (path !== null) {
+            let prefix = "/verify";
+            if (path.startsWith("/api/clients")) prefix = "/admin";
+            else if (path.startsWith("/.well-known/")) prefix = "/jwks";
+            req.setUrl(base + prefix + path);
+          }
+        }
+
+docs:
+  content: |-
+    ## auth-gate
+
+    Two-factor verification (PIN and WebAuthn passkeys) for other backends. A
+    client backend calls this service with its own key; the browser never talks
+    to auth-gate. A successful verification returns a short-lived ES256 JWT that
+    the client checks against `{{baseUrl}}/.well-known/jwks.json`.
+
+    ### One URL, three functions
+
+    It is one binary deployed as three Lambda functions behind one CloudFront
+    distribution. CloudFront routes by path:
+
+    | path | function | credential |
+    | --- | --- | --- |
+    | `/api/clients*` | `admin` | `x-internal-access-key: {{adminKey}}` |
+    | `/.well-known/*` | `jwks` | none |
+    | everything else | `verify` | `x-internal-access-key: {{clientKey}}` |
+
+    So there is **one** `{{baseUrl}}`, like notification-manager. The Function
+    URLs behind it refuse anything that did not come through CloudFront: see
+    `01-the-boundary/` for the direct-URL request (`{{rawVerifyUrl}}` → 401).
+
+    `make dev` serves the three roles on one port under `/admin`, `/verify` and
+    `/jwks`. The collection-level pre-request script adds that prefix whenever
+    `baseUrl` is a localhost URL, so the requests are written once, against the
+    deployed shape.
+
+    ### Two different keys
+
+    `{{adminKey}}` creates clients and rotates their keys. `{{clientKey}}` is
+    what one client backend holds; it is captured by `02-clients/01-create`
+    (and by `01-the-boundary/03`) and is returned **once**: only its SHA-256 is
+    stored. A client key on an admin route is a 401. `04-smoke.sh` refuses to run
+    if the two are ever equal.
+
+    ### Variables
+
+    - `baseUrl`, `rawVerifyUrl`, `adminKey`, `subjectId` come from the environment.
+    - `clientKey`, `clientId`, `challengeId`, `token` are captured at run time.
+
+    ### Environments
+
+    ```bash
+    cd bruno/environments
+    cp local.example.yml local.yml   # then: make dev
+    ```
+
+    Run it from the collection root, with the developer sandbox (`05-tokens/02`
+    verifies the JWT with node's `crypto`, which the default safe sandbox lacks):
+
+    ```bash
+    cd bruno && npx -y @usebruno/cli run --env local --sandbox=developer
+    ```
+
+    For stg, `scripts/setup-and-deploy/04-smoke.sh` writes a temporary,
+    gitignored `stg.yml` from the stack outputs (`BaseUrl`, `RawVerifyUrl`) and
+    SSM (`admin-key`), runs this collection, then deletes it.
+    `stg.example.yml` shows its shape with placeholders. Real environment files
+    are gitignored; never commit a key.
+
+    ### Order matters
+
+    Run the folders in order. `03-pin` produces the `token` that `05-tokens`
+    verifies, and `02-clients` creates the client that `03-pin` and
+    `04-webauthn` use. The real WebAuthn round trip needs an authenticator, so it
+    lives in `go run ./cmd/smoke`, not here.
+  type: text/markdown
+bundled: false
+extensions: {}

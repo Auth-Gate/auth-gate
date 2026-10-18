@@ -1,0 +1,43 @@
+info:
+  name: "Raw Function URL with a valid key (401)"
+  type: http
+  seq: 15
+
+http:
+  method: GET
+  url: "{{rawVerifyUrl}}/api/factors/{{subjectId}}"
+  headers:
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        // Nothing to bypass without CloudFront; see docs.
+        const raw = String(bru.getEnvVar("rawVerifyUrl") || "");
+        if (!raw || /^https?:\/\/(localhost|127\.0\.0\.1)/.test(raw)) bru.runner.skipRequest();
+    - type: tests
+      code: |-
+        test("401 — the origin check holds even with a valid key", function() {
+          expect(res.getStatus()).to.equal(401);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Calls the verify function's own Function URL directly, skipping CloudFront,
+  with a **valid** client key. **Expected: 401.**
+
+  The Function URL is public by necessity (CloudFront needs to reach it), so the
+  function only answers requests carrying `x-origin-verify`, a value CloudFront
+  adds and the caller never sees. A valid client key is not enough on its own.
+
+  `rawVerifyUrl` is the `RawVerifyUrl` stack output; `04-smoke.sh` fills it in.
+  **Skipped locally** (empty `rawVerifyUrl`): `make dev` has no CloudFront and
+  no origin check, so there is nothing to bypass. Harmless on prd.

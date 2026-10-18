@@ -1,0 +1,36 @@
+info:
+  name: "No key (401)"
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/factors/{{subjectId}}"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("401 — no anonymous route on verify", function() {
+          expect(res.getStatus()).to.equal(401);
+        });
+
+        test("the 401 body does not say which credential was missing", function() {
+          const body = JSON.stringify(res.getBody() ?? "").toLowerCase();
+          expect(body).to.not.include("x-internal-access-key");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  A verify-role read with no `x-internal-access-key`. **Expected: 401.**
+
+  Every verify route sits behind the client key; there is no anonymous route on
+  this role at all. The 401 body names neither the header nor the key.
+
+  On prd this is harmless: it reads nothing.

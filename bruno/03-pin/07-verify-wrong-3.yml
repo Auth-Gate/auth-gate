@@ -1,0 +1,50 @@
+info:
+  name: "Wrong PIN 3 of 3 (423)"
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/challenges/{{challengeId}}/verify"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "pin": "000001" }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("423 — counted failure", function() {
+          expect(res.getStatus()).to.equal(423);
+        });
+
+        test("error is locked", function() {
+          expect(res.getBody().error).to.equal("locked");
+        });
+
+        test("says until when", function() {
+          expect(res.getBody().lockedUntil).to.be.a("string").and.not.empty;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Wrong PIN, attempt 3 of the client's 3. **Expected: 423 `locked`.**
+
+  Failures count against the *subject*, not just the challenge: opening a new
+  challenge does not reset them. The third failure locks the subject for
+  `lockoutSec` (60 s for this client); while locked, opening a PIN challenge
+  is also a 423. Enrolling a new PIN (`01`) clears the lockout.
+
+  > **On prd** three of these lock a real user out.
