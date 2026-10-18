@@ -3,5 +3,6 @@
 | Worktree | Branch | Task | Status | Last handoff | Notes |
 |---|---|---|---|---|---|
 | feat-infra-tooling | feat/infra-tooling | Worktree scripts, hooks, pnpm skeleton, CI, docs (round 1) | review | 2026-10-18-1640 | plan: docs/superpowers/plans/2026-10-18-worktree-infrastructure.md |
+| feat-smoke | feat/smoke | Smoke test: add one line to README | planned | - | trial run of worktree flow |
 
 Status values: planned, active, review, merged, abandoned.
