@@ -18,6 +18,9 @@ func For(c client.Client) (*gowa.WebAuthn, error) {
 	return gowa.New(&gowa.Config{RPID: c.RPID, RPDisplayName: c.Name, RPOrigins: c.Origins})
 }
 
+// MaxIDLen is the longest stored id; longer ids could not be addressed later.
+const MaxIDLen = 256
+
 // EncodeID is the stored and public form of a raw credential ID.
 func EncodeID(raw []byte) string { return base64.RawURLEncoding.EncodeToString(raw) }
 
@@ -30,6 +33,7 @@ func ToCredential(wc *gowa.Credential, displayName string, now time.Time) factor
 	return factor.Credential{
 		ID: EncodeID(wc.ID), PublicKey: wc.PublicKey, SignCount: wc.Authenticator.SignCount,
 		AAGUID: wc.Authenticator.AAGUID, Transports: transports, DisplayName: displayName, CreatedAt: now,
+		BackupEligible: wc.Flags.BackupEligible, BackupState: wc.Flags.BackupState,
 	}
 }
 
@@ -43,6 +47,7 @@ func FromCredential(fc factor.Credential) gowa.Credential {
 	}
 	return gowa.Credential{
 		ID: raw, PublicKey: fc.PublicKey, Transport: transports,
+		Flags:         gowa.CredentialFlags{BackupEligible: fc.BackupEligible, BackupState: fc.BackupState},
 		Authenticator: gowa.Authenticator{AAGUID: fc.AAGUID, SignCount: fc.SignCount},
 	}
 }

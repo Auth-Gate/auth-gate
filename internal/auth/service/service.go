@@ -265,12 +265,6 @@ func (s *Service) VerifyWebAuthn(ctx context.Context, c client.Client, challenge
 		return Token{}, err
 	}
 	user := webauthn.NewUser(ch.SubjectID, "", creds)
-	// The backup-eligible flag is not stored, so take it from the assertion;
-	// otherwise go-webauthn rejects every synced passkey.
-	stored := user.WebAuthnCredentials()
-	for i := range stored {
-		stored[i].Flags.BackupEligible = parsed.Response.AuthenticatorData.Flags.HasBackupEligible()
-	}
 	cred, err := wa.ValidateLogin(user, session, parsed)
 	if err != nil || cred.Authenticator.CloneWarning {
 		return Token{}, failed
@@ -279,7 +273,7 @@ func (s *Service) VerifyWebAuthn(ctx context.Context, c client.Client, challenge
 		return Token{}, err
 	}
 	// The challenge is consumed; a failed use update must not cost the caller the token.
-	if err := s.Factors.UpdateCredentialUse(ctx, c.ID, ch.SubjectID, webauthn.EncodeID(cred.ID), cred.Authenticator.SignCount, now); err != nil {
+	if err := s.Factors.UpdateCredentialUse(ctx, c.ID, ch.SubjectID, webauthn.EncodeID(cred.ID), cred.Authenticator.SignCount, cred.Flags.BackupState, now); err != nil {
 		slog.Error("update credential use", "client", c.ID, "err", err)
 	}
 	return s.issue(ctx, c, ch, now)
@@ -347,6 +341,9 @@ func (s *Service) FinishRegistration(ctx context.Context, c client.Client, regis
 		return "", fmt.Errorf("%w: %w", ErrRegistrationFailed, err)
 	}
 	fc := webauthn.ToCredential(wc, reg.DisplayName, now)
+	if len(fc.ID) > webauthn.MaxIDLen {
+		return "", fmt.Errorf("%w: credential id too long", ErrRegistrationFailed)
+	}
 	if err := s.Factors.PutCredential(ctx, c.ID, reg.SubjectID, fc); err != nil {
 		return "", err
 	}
