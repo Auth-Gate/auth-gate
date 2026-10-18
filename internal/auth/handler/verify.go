@@ -13,14 +13,16 @@ import (
 )
 
 // NewVerify returns the verify-role API behind the client access key.
-// WebAuthn registration routes are added in Task 10; the origin-verify
-// wrapper is applied in main.
+// The origin-verify wrapper is applied in main.
 func NewVerify(svc *service.Service, clients *client.Service) http.Handler {
 	h := &verify{svc: svc}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/factors/pin", h.enrollPIN)
 	mux.HandleFunc("DELETE /api/factors/pin/{subjectId}", h.deletePIN)
 	mux.HandleFunc("GET /api/factors/{subjectId}", h.factors)
+	mux.HandleFunc("POST /api/webauthn/registrations", h.beginRegistration)
+	mux.HandleFunc("POST /api/webauthn/registrations/{registrationId}", h.finishRegistration)
+	mux.HandleFunc("DELETE /api/webauthn/credentials/{credentialId}", h.deleteCredential)
 	mux.HandleFunc("POST /api/challenges", h.beginChallenge)
 	mux.HandleFunc("POST /api/challenges/{challengeId}/verify", h.verifyChallenge)
 	return httpx.RequireKey("x-internal-access-key", clients.KeyFunc())(mux)
@@ -80,6 +82,64 @@ func (h *verify) factors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, view)
+}
+
+func (h *verify) beginRegistration(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		SubjectID   string `json:"subjectId"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := httpx.DecodeJSON(r, &body); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	reg, creation, err := h.svc.BeginRegistration(r.Context(), c, body.SubjectID, body.DisplayName)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"registrationId": reg.ID, "publicKey": creation.Response})
+}
+
+func (h *verify) finishRegistration(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Credential json.RawMessage `json:"credential"`
+	}
+	if err := httpx.DecodeJSON(r, &body); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	if len(body.Credential) == 0 || string(body.Credential) == "null" {
+		writeServiceError(w, fmt.Errorf("%w: credential is required", httpx.ErrBadJSON))
+		return
+	}
+	credID, err := h.svc.FinishRegistration(r.Context(), c, r.PathValue("registrationId"), body.Credential)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"credentialId": credID})
+}
+
+func (h *verify) deleteCredential(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	// A missing subjectId fails id validation: 400 invalid_id.
+	if err := h.svc.DeleteCredential(r.Context(), c, r.URL.Query().Get("subjectId"), r.PathValue("credentialId")); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *verify) beginChallenge(w http.ResponseWriter, r *http.Request) {
