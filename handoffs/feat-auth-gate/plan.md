@@ -4,7 +4,7 @@
 
 **Goal:** Ship v1 of auth-gate: a Go Lambda service that enrolls and verifies PINs and WebAuthn passkeys for registered backend clients and returns KMS-signed assertion tokens, with a Bruno collection as the integration handoff.
 
-**Architecture:** One Go binary, three `ROLE`s (`verify`, `admin`, `jwks`) each deployed as its own Lambda Function URL with its own IAM role. One DynamoDB table (`pk`/`sk`, tenant in `pk`). `internal/platform` is foundation (http, dynamo, kms, ssm, ids); `internal/auth` is domain (client, pin, factor, challenge, token, webauthn, service, handler) and talks to storage through interfaces it defines.
+**Architecture:** One Go binary, three `ROLE`s (`verify`, `admin`, `jwks`) each deployed as its own Lambda Function URL with its own IAM role, all behind one CloudFront distribution (optional custom domain) so integrators see a single base URL; raw Function URLs refuse calls without CloudFront's `x-origin-verify` header. One DynamoDB table (`pk`/`sk`, tenant in `pk`). `internal/platform` is foundation (http, dynamo, kms, ssm, ids); `internal/auth` is domain (client, pin, factor, challenge, token, webauthn, service, handler) and talks to storage through interfaces it defines.
 
 **Tech Stack:** Go 1.26, `aws-lambda-go` + `aws-lambda-go-api-proxy/httpadapter`, `aws-sdk-go-v2` (dynamodb, kms, ssm), `go-webauthn/webauthn`, `oklog/ulid/v2`, `x/crypto/argon2`, `descope/virtualwebauthn` (tests), AWS SAM, DynamoDB Local (docker compose), golangci-lint v2, Bruno OpenCollection.
 
@@ -17,7 +17,8 @@
 - Any id containing `#` → `400 invalid_id` before storage. Ids are 1–256 bytes.
 - The 401 body is exactly `{"error":"unauthorized"}`; no `details`, never the word "key" or the header name.
 - Error envelope: `{"error": "<snake_case_code>", ...extras}`. Arrays in success bodies are never `null`.
-- Header name `x-internal-access-key`. SSM path `/credo/auth-gate/<stage>/admin-key`. Region `ap-southeast-1`.
+- Header name `x-internal-access-key`. CloudFront origin header `x-origin-verify`. SSM paths `/credo/auth-gate/<stage>/admin-key` and `/credo/auth-gate/<stage>/origin-verify`. Region `ap-southeast-1` (ACM certificate for CloudFront in `us-east-1`).
+- Integrators see one base URL (CloudFront, optionally a custom domain). Raw Function URLs answer 401 without the origin header; `jwks` is exempt.
 - TTLs: registrations and challenges 5 min; superseded access keys 24 h. Token `tokenTtlSec` default 300, max 900. PIN defaults `length 6` (4–8), `maxAttempts 5`, `lockoutSec 900`. WebAuthn max 3 attempts per challenge.
 - `internal/platform/**` must not import `internal/auth/**`.
 - Tests only where the spec's §11 table puts them; no handler-marshalling tests, no AWS SDK mocks, no coverage targets.
@@ -107,7 +108,7 @@ git show orchestrator:handoffs/feat-auth-gate/plan.md > docs/superpowers/plans/2
   - `id.New() string` (ULID), `id.Validate(s string) error` (empty, >256 bytes, or contains `#` → `id.ErrInvalid`).
   - `httpx.DecodeJSON(r *http.Request, dst any) error` (1 MiB limit, `DisallowUnknownFields` off, type errors wrapped as `httpx.ErrBadJSON`).
   - `httpx.WriteJSON(w, status int, v any)`; `httpx.WriteError(w, status int, code string, extra map[string]any)`.
-  - `type KeyFunc func(ctx context.Context, key string) (context.Context, bool)`; `httpx.RequireKey(fn KeyFunc) func(http.Handler) http.Handler` reading `x-internal-access-key`, 401 on missing/false; `httpx.StaticKey(expected string) KeyFunc` using `crypto/subtle.ConstantTimeCompare`.
+  - `type KeyFunc func(ctx context.Context, key string) (context.Context, bool)`; `httpx.RequireKey(header string, fn KeyFunc) func(http.Handler) http.Handler` reading the named header, 401 on missing/false; `httpx.StaticKey(expected string) KeyFunc` using `crypto/subtle.ConstantTimeCompare`. The same middleware serves both the access key (`x-internal-access-key`) and the CloudFront origin check (`x-origin-verify`, outermost).
   - Routing uses Go's `http.ServeMux` method patterns (`"POST /api/factors/pin"`), which gives 404/405 for free; `RequireKey` wraps the whole mux so 401 precedes 404.
 
 - [ ] **Step 1: Write failing tests**
@@ -115,9 +116,10 @@ git show orchestrator:handoffs/feat-auth-gate/plan.md > docs/superpowers/plans/2
 ```go
 func TestValidateRejectsHashEmptyAndLong(t *testing.T)   // "a#b", "", strings.Repeat("x",257) → ErrInvalid; "user_1" → nil
 func TestRequireKeyAnswers401BeforeRoutingAndNeverSaysKey(t *testing.T)
-// mux with "GET /api/x"; wrapped := RequireKey(StaticKey("s3cret"))(mux)
-// GET /nope without header → 401, body == `{"error":"unauthorized"}`+"\n"
-// GET /nope with header "s3cret" → 404 ; GET /api/x with "wrong" → 401 ; POST /api/x with "s3cret" → 405
+// mux with "GET /api/x"; wrapped := RequireKey("x-origin-verify", StaticKey("cf"))(RequireKey("x-internal-access-key", StaticKey("s3cret"))(mux))
+// GET /nope without headers → 401, body == `{"error":"unauthorized"}`+"\n"
+// GET /nope with both headers → 404 ; GET /api/x with origin ok, key "wrong" → 401 ; POST /api/x with both → 405
+// GET /api/x with valid key but no x-origin-verify → 401 (direct Function URL call)
 func TestDecodeJSONRejectsMalformedAndWrongType(t *testing.T)
 // body `{"pin":123456}` into struct{Pin string} → errors.Is(err, ErrBadJSON); body `{` → ErrBadJSON
 ```
@@ -386,7 +388,7 @@ func TestDERToRaw(t *testing.T) // sign a digest with crypto/ecdsa.SignASN1 → 
   // Attempt → (wrong factor → ErrWrongFactor) → GetPIN → Locked? → Verify → fail: RecordPINFailure then VerificationFailed{Remaining: MaxAttempts-Attempts} or Locked → ok: Complete (ErrGone if lost the race) → ResetPINFailures → Issue
   type Token struct{ Token string; ExpiresAt time.Time; Factor challenge.Factor }
   // handler
-  func NewVerify(svc *service.Service, clients *client.Service) http.Handler // ServeMux with the 6 PIN/challenge routes + GET /factors; RequireKey(clients.KeyFunc()) around it; WebAuthn routes added in Task 10
+  func NewVerify(svc *service.Service, clients *client.Service) http.Handler // ServeMux with the 6 PIN/challenge routes + GET /factors; RequireKey("x-internal-access-key", clients.KeyFunc()) around it; WebAuthn routes added in Task 10. The origin-verify wrapper is applied in main (Task 11), not here, so service tests and ROLE=dev stay simple.
   ```
   `respond.go`: `writeServiceError(w, err)` maps: `id.ErrInvalid` → 400 `invalid_id`; `httpx.ErrBadJSON` → 400 `invalid_json`; `ErrPINRejected` → 400 `pin_rejected`; `VerificationFailed` → 400 `verification_failed` + `attemptsRemaining`; `Locked` → 423 `locked` + `lockedUntil`; `challenge.ErrGone` → 410 `challenge_gone`; `ErrWrongFactor` → 400 `wrong_factor`; `ErrFactorNotFound` → 404 `factor_not_found`; else 500 `internal` (logged).
 
@@ -450,22 +452,22 @@ func TestWebAuthnRejectsRegressedSignCount(t *testing.T) // after one good asser
 **Interfaces:**
 - Produces:
   ```go
-  type Config struct{ Role, Stage, Table, Region, KMSKeyID string; KMSKeyIDs []string; AdminKeyParam, DynamoEndpoint string; LocalSigner bool; Port string }
+  type Config struct{ Role, Stage, Table, Region, KMSKeyID string; KMSKeyIDs []string; AdminKeyParam, OriginVerifyParam, BaseURL, DynamoEndpoint string; LocalSigner bool; Port string }
   func Load(getenv func(string) string) (Config, error)
-  // ROLE ∉ {verify,admin,jwks,dev} → error; verify: Table and (KMSKeyID or LocalSigner) required; admin: Table and AdminKeyParam required; jwks: KMSKeyIDs or LocalSigner required
-  func NewAdmin(svc *service.Service, adminKey string) http.Handler // RequireKey(StaticKey(adminKey)); POST /api/clients, GET /api/clients/{id}, POST /api/clients/{id}/keys, DELETE /api/clients/{id}/subjects/{subjectId}
+  // ROLE ∉ {verify,admin,jwks,dev} → error; verify: Table, BaseURL, OriginVerifyParam and (KMSKeyID or LocalSigner) required; admin: Table, AdminKeyParam, OriginVerifyParam required; jwks: KMSKeyIDs or LocalSigner required; dev: none of the SSM params
+  func NewAdmin(svc *service.Service, adminKey string) http.Handler // RequireKey("x-internal-access-key", StaticKey(adminKey)); POST /api/clients, GET /api/clients/{id}, POST /api/clients/{id}/keys, DELETE /api/clients/{id}/subjects/{subjectId}
   func NewJWKS(signers ...token.Signer) http.Handler              // GET /.well-known/jwks.json, Cache-Control: public, max-age=300
   func (s *Service) CreateClient(ctx, in client.CreateInput) (client.Client, string, error)  // CreateInput.Validate error → 400 invalid_client
   func (s *Service) RotateClientKey(ctx, id string) (string, error)   // ErrNotFound → 404 client_not_found
   func (s *Service) PurgeSubject(ctx, clientID, subjectID string) error
   ```
-  `main.go`: `config.Load(os.Getenv)`; build deps; `ROLE=dev` serves all three under `/verify`, `/admin`, `/jwks` prefixes on `:PORT` with `LocalSigner` and `ADMIN_KEY` from env (dev only); otherwise `lambda.Start(httpadapter.NewFunctionURL(h).ProxyWithContext)`. Admin key on AWS: `ssmx.GetSecureString(cfg.AdminKeyParam)` at cold start; empty → `log.Fatal`.
+  `main.go`: `config.Load(os.Getenv)`; build deps; `ROLE=dev` serves all three under `/verify`, `/admin`, `/jwks` prefixes on `:PORT` with `LocalSigner`, `ADMIN_KEY` from env and no origin check (dev only); otherwise wrap `verify`/`admin` in `RequireKey("x-origin-verify", StaticKey(originSecret))` and `lambda.Start(httpadapter.NewFunctionURL(h).ProxyWithContext)`. Secrets on AWS: `ssmx.GetSecureString` for `AdminKeyParam` and `OriginVerifyParam` at cold start; empty → `log.Fatal`. `service.Issuer = cfg.BaseURL`.
   `make dev`: `docker compose up -d && ROLE=dev TABLE_NAME=authgate-dev DYNAMO_ENDPOINT=http://localhost:8000 SIGNER=local ADMIN_KEY=dev-admin PORT=8080 go run ./cmd/auth-gate` (main calls `dynamo.EnsureTable` when `DynamoEndpoint != ""`).
 
 - [ ] **Step 1: Write failing test**
 
 ```go
-func TestLoadRefusesIncompleteRoles(t *testing.T) // table: verify without KMS_KEY_ID and without SIGNER=local → error; admin without ADMIN_KEY_PARAM → error; jwks without KMS_KEY_IDS → error; ROLE=nope → error; verify with SIGNER=local → ok
+func TestLoadRefusesIncompleteRoles(t *testing.T) // table: verify without KMS_KEY_ID and without SIGNER=local → error; verify without ORIGIN_VERIFY_PARAM or BASE_URL → error; admin without ADMIN_KEY_PARAM → error; jwks without KMS_KEY_IDS → error; ROLE=nope → error; ROLE=dev with nothing but TABLE_NAME → ok
 ```
 
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement config, admin, jwks, main, Makefile.** **Step 4: Run `make check`** — PASS.
@@ -483,19 +485,24 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 
 ---
 
-### Task 12: SAM template and deploy scripts
+### Task 12: SAM template (functions + CloudFront) and deploy scripts
 
 **Files:**
-- Create: `infra/template.yaml`, `scripts/setup-and-deploy/01-ssm.sh`, `02-build.sh`, `03-deploy.sh`, `99-purge.sh`
+- Create: `infra/template.yaml`, `scripts/setup-and-deploy/00-cert.sh`, `01-ssm.sh`, `02-build.sh`, `03-deploy.sh`, `99-purge.sh`
 
 **Interfaces:**
-- Produces: stack `auth-gate-<stage>` with: `Table` (pk/sk, `ttl`, PITR, on-demand), `SigningKey` (`KeySpec ECC_NIST_P256`, `KeyUsage SIGN_VERIFY`) + alias `alias/auth-gate-<stage>`, three `AWS::Serverless::Function` (`provided.al2023`, arm64, 256 MB, 10 s, `FunctionUrlConfig AuthType NONE`) `Verify`, `Admin`, `Jwks` sharing one `CodeUri` (built by `02-build.sh` into `bin/bootstrap`), each with its own `Policies` exactly as spec §5, env per Task 11. Outputs: the three Function URLs.
-- Scripts take `STAGE` (default `stg`) and `AWS_PROFILE` (default `credo-stg-ops`): `01-ssm.sh` writes a random admin key to `/credo/auth-gate/<stage>/admin-key` (refuses if it exists); `02-build.sh` cross-compiles `GOOS=linux GOARCH=arm64`; `03-deploy.sh` runs `sam deploy` and prints the three URLs; `99-purge.sh` deletes the stack and the SSM parameter after a typed confirmation.
+- Produces: stack `auth-gate-<stage>` with:
+  - `Table` (pk/sk, `ttl`, PITR, on-demand); `SigningKey` (`KeySpec ECC_NIST_P256`, `KeyUsage SIGN_VERIFY`) + alias `alias/auth-gate-<stage>`.
+  - Three `AWS::Serverless::Function` (`provided.al2023`, arm64, 256 MB, 10 s, `FunctionUrlConfig AuthType NONE`) `Verify`, `Admin`, `Jwks` sharing one `CodeUri` (`02-build.sh` → `bin/bootstrap`), each with its own `Policies` exactly as spec §5 (plus `ssm:GetParameter` on its own parameters), env per Task 11; `BASE_URL` is `https://<DomainName>` when given, else the distribution domain (`!GetAtt Distribution.DomainName` — resolved through a `!If`).
+  - `Distribution` (`AWS::CloudFront::Distribution`): three origins = the Function URL hosts (`!Select [2, !Split ["/", !GetAtt VerifyUrl.FunctionUrl]]`), each with `OriginCustomHeaders: x-origin-verify = {{resolve:ssm:/credo/auth-gate/<stage>/origin-verify}}`; behaviours per spec §5.1 with managed `CachingDisabled` + `AllViewerExceptHostHeader` for `/*` and `/api/clients*`, and a cache policy honouring origin headers for `/.well-known/*`; `ViewerProtocolPolicy redirect-to-https`; `HttpVersion http2and3`; `PriceClass_200`.
+  - Parameters `Stage`, `DomainName` (default `""`), `CertificateArn` (default `""`), `HostedZoneId` (default `""`); conditions `HasDomain`, `HasZone`; `Aliases`/`ViewerCertificate` under `HasDomain`; `AWS::Route53::RecordSet` alias under `HasZone`.
+  - Outputs: `BaseUrl` (one), and `RawVerifyUrl`/`RawAdminUrl`/`RawJwksUrl` for the boundary test and debugging.
+- Scripts take `STAGE` (default `stg`) and `AWS_PROFILE` (default `credo-stg-ops`): `00-cert.sh DOMAIN` requests an ACM certificate in `us-east-1` with DNS validation and prints the CNAME to add and the ARN (optional step); `01-ssm.sh` writes random `admin-key` and `origin-verify` SecureStrings (refuses if they exist); `02-build.sh` cross-compiles `GOOS=linux GOARCH=arm64 CGO_ENABLED=0`; `03-deploy.sh` runs `sam deploy` with the optional domain parameters from env and prints `BaseUrl`; `99-purge.sh` deletes the stack and both SSM parameters after a typed confirmation.
 
 - [ ] **Step 1: Write the template and scripts; shellcheck is in the gate.**
 - [ ] **Step 2: `sam validate --lint -t infra/template.yaml`** — Expected: valid. `pnpm run check` — green.
-- [ ] **Step 3: HUMAN — `01-ssm.sh`, `02-build.sh`, `03-deploy.sh` to stg; paste the three URLs into the Bruno `stg` environment (Task 13).**
-- [ ] **Step 4: Commit** — `feat(infra): sam template with three least-privilege functions and deploy scripts`
+- [ ] **Step 3: HUMAN — optionally `00-cert.sh`, then `01-ssm.sh`, `02-build.sh`, `03-deploy.sh` to stg (CloudFront takes 5–10 min). Record `BaseUrl` and `RawVerifyUrl` for the Bruno `stg` environment (Task 13). Check: `curl -i $RawVerifyUrl/api/nope` → 401; `curl -i $BaseUrl/.well-known/jwks.json` → 200.**
+- [ ] **Step 4: Commit** — `feat(infra): sam template with three least-privilege functions behind one cloudfront door`
 
 ---
 
@@ -505,9 +512,9 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 - Create: `bruno/opencollection.yml`, `bruno/environments/local.example.yml`, `bruno/01-the-boundary/`, `02-clients/`, `03-pin/`, `04-webauthn/`, `05-tokens/` (folder.yml + numbered requests), `cmd/smoke/main.go`, `scripts/setup-and-deploy/04-smoke.sh`
 
 **Interfaces:**
-- Collection `[External] Auth Gate (Lambda)`; variables `verifyUrl`, `adminUrl`, `jwksUrl`, `adminKey`, `clientKey`, `clientId`, `subjectId`, `challengeId`, `token`. Requests per spec §12; every request has `docs:` (why, **expected status**, prd note) and `tests` assertions; `02-clients/01-create` and `03-pin/02-challenge` capture vars in `after-response`. `01-the-boundary/` includes the `#`-in-id and the cross-client challenge (`CH` id from a second client created in the same folder) requests.
-- `cmd/smoke`: flags `-verify-url -admin-url -jwks-url -admin-key`; creates a client with `rpId smoke.local`, origin `https://smoke.local`; runs the full virtualwebauthn register→challenge→verify loop; verifies the token with `token.VerifyWithJWKS`; exits 0 only if claims match. Prints one line per step.
-- `04-smoke.sh`: `bru run bruno --env stg` then `go run ./cmd/smoke …` with URLs read from the stack outputs; fails if `adminKey` equals `clientKey`.
+- Collection `[External] Auth Gate (Lambda)`; variables `baseUrl`, `rawVerifyUrl`, `adminKey`, `clientKey`, `clientId`, `subjectId`, `challengeId`, `token`. Requests per spec §12; every request has `docs:` (why, **expected status**, prd note) and `tests` assertions; `02-clients/01-create` and `03-pin/02-challenge` capture vars in `after-response`. `01-the-boundary/` includes the `#`-in-id, the cross-client challenge (`CH` id from a second client created in the same folder) and the direct-Function-URL (`{{rawVerifyUrl}}` with `{{clientKey}}` → 401) requests. In `local.example.yml`, `baseUrl` is `http://localhost:8080` and the dev server's role prefixes are handled by a collection-level `pre-request` script that rewrites `/api/clients*` → `/admin/api/clients*`, `/.well-known/*` → `/jwks/...`, else `/verify/...` when `baseUrl` is localhost.
+- `cmd/smoke`: flags `-base-url -admin-key`; creates a client with `rpId smoke.local`, origin `https://smoke.local`; runs the full virtualwebauthn register→challenge→verify loop; verifies the token with `token.VerifyWithJWKS` fetched from `<base-url>/.well-known/jwks.json` and checks `iss == base-url`; exits 0 only if claims match. Prints one line per step.
+- `04-smoke.sh`: reads `BaseUrl` and `RawVerifyUrl` from the stack outputs and `admin-key` from SSM, runs `bru run bruno --env stg`, then `go run ./cmd/smoke …`; fails if `adminKey` equals `clientKey`.
 
 - [ ] **Step 1: Write the collection; run it against `make dev` with `local.example.yml` copied to `local.yml`** — `npx -y @usebruno/cli run bruno --env local` — Expected: all boundary requests fail as asserted, all others pass. If the CLI cannot read the OpenCollection YAML, record the exact error in the request docs and keep the collection for the Bruno app; the smoke then relies on `cmd/smoke` and a note in `04-smoke.sh`.
 - [ ] **Step 2: Write `cmd/smoke` and run it against `make dev`** — Expected: `ok token verified` as last line, exit 0.
@@ -519,8 +526,8 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 ### Task 14: Memos, README, CONTRIBUTING
 
 **Files:**
-- Create: `docs/memo/three-roles-one-binary.md`, `pin-goes-through-a-challenge.md`, `kms-signs-not-ssm.md`, `challenge-is-client-scoped.md`, `webauthn-without-a-browser.md`, `no-health-endpoint.md`, `client-key-is-a-hash-lookup.md`
-- Modify: `README.md` (replace the round-1 intro and layout; add credential model, relay flow diagram from spec §6.4, "how a consumer verifies a token", local dev, deploy), `CONTRIBUTING.md` (Go toolchain, `make check`, DynamoDB Local), `bruno/opencollection.yml` `docs:` (collection README per sibling order)
+- Create: `docs/memo/three-roles-one-binary.md`, `pin-goes-through-a-challenge.md`, `kms-signs-not-ssm.md`, `challenge-is-client-scoped.md`, `webauthn-without-a-browser.md`, `no-health-endpoint.md`, `client-key-is-a-hash-lookup.md`, `one-door-cloudfront.md` (includes why not OAC)
+- Modify: `README.md` (replace the round-1 intro and layout; add "one base URL" + optional custom domain, credential model, relay flow diagram from spec §6.4, "how a consumer verifies a token", signing-key rotation order, local dev, deploy), `CONTRIBUTING.md` (Go toolchain, `make check`, DynamoDB Local), `bruno/opencollection.yml` `docs:` (collection README per sibling order)
 
 - [ ] **Step 1: Write each memo as: decision, context, alternatives rejected, consequences — ≤ 25 lines each.**
 - [ ] **Step 2: Update README/CONTRIBUTING; `pnpm run check`** — green.

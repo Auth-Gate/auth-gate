@@ -21,7 +21,11 @@ section below says otherwise and why.
 ## 2. Decisions already made
 
 - Go, AWS Lambda behind Function URLs (no API Gateway), one DynamoDB table.
-- One binary deployed as three functions selected by `ROLE` (like activity-logger).
+- One binary deployed as three functions selected by `ROLE` (like activity-logger),
+  all behind **one CloudFront distribution** so integrators get a single base URL
+  (optionally a custom domain). Decided 2026-10-18 after the first draft: the
+  service is meant to be dropped into many projects, and a handoff with three
+  raw Function URLs is not "one bundle like the siblings".
 - Browsers and mobile apps never call auth-gate. Only backends do.
 - Clients are registered, each with its own access key. `clientId` is derived
   from the key, never trusted from the body.
@@ -35,7 +39,8 @@ section below says otherwise and why.
 
 - User management, sessions, passwords, SSO. The client owns identity.
 - A browser-facing path, CORS, cookies.
-- Multi-region, custom domains, usage metering.
+- Multi-region, usage metering, WAF rate limiting (CloudFront makes it a later
+  add-on, not a v1 feature).
 - Recovery flows. If a subject loses all factors the client deletes them via the
   admin role and re-enrolls.
 
@@ -65,6 +70,39 @@ Why not one function: the thing that signs tokens must not be the thing that
 edits clients, and the only public route must live in a binary path that has no
 secrets. Three functions make that an IAM statement instead of a code review.
 Memo: `three-roles-one-binary`.
+
+### 5.1 One door: CloudFront in front of the three functions
+
+A single CloudFront distribution is the only URL integrators see. Behaviours by
+path, most specific first:
+
+| Path pattern | Origin | Caching |
+|---|---|---|
+| `/.well-known/*` | `jwks` Function URL | honour origin `Cache-Control` (300 s) |
+| `/api/clients*` | `admin` Function URL | disabled |
+| `/*` (default) | `verify` Function URL | disabled |
+
+All viewer headers except `Host` are forwarded (managed policy
+`AllViewerExceptHostHeader`); only HTTPS; HTTP/2 and 3.
+
+Direct calls to the Function URLs are refused: CloudFront adds a custom origin
+header `x-origin-verify: <secret>` and the `verify` and `admin` muxes answer
+`401 {"error":"unauthorized"}` when it is missing or wrong (constant-time
+compare, same body as a bad access key). The secret lives in SSM
+`/credo/auth-gate/<stage>/origin-verify` and is read at cold start. `jwks` does
+not check it: it is public anyway.
+
+Why a secret header rather than Lambda OAC with `AuthType: AWS_IAM`: OAC makes
+CloudFront sign origin requests, but for `POST`/`PUT` the *viewer* must then
+send `x-amz-content-sha256` with the body hash. Every integrator would have to
+hash request bodies, which breaks "one base URL, one header". The secret header
+is invisible to callers. Memo: `one-door-cloudfront`.
+
+Custom domain is optional: parameters `DomainName` and `CertificateArn` (ACM in
+`us-east-1`, created by `00-cert.sh`) add an alias and, when `HostedZoneId` is
+given, a Route 53 alias record. Without them the distribution's
+`*.cloudfront.net` name is the base URL. Either way `03-deploy.sh` prints exactly
+one URL, and the token `iss` is `https://<that host>`.
 
 Unknown path → 404; known path, wrong verb → 405. The access-key check wraps the
 whole `verify` and `admin` muxes, so an unknown path without a key is 401 before
@@ -195,7 +233,8 @@ Decisions:
 - JWT, `alg: ES256`, `kid` = KMS key id. Signed by `kms:Sign` with
   `ECDSA_SHA_256` on an `ECC_NIST_P256` `SIGN_VERIFY` key created by the SAM
   template. KMS returns DER; the signer converts to the raw `r||s` JWS form.
-- Claims: `iss` (the jwks Function URL), `sub` = subjectId, `aud` = clientId,
+- Claims: `iss` = `https://<base host>` (the CloudFront or custom domain, so
+  `<iss>/.well-known/jwks.json` is the key set), `sub` = subjectId, `aud` = clientId,
   `amr` = `["pin"]` or `["webauthn"]`, `purpose`, `jti` = challengeId, `iat`,
   `exp` = `iat + tokenTtlSec` (client default 300, max 900).
 - Consumers verify signature via JWKS, then check `aud` is themselves and
@@ -223,8 +262,8 @@ cmd/auth-gate/main.go            ROLE → mux → Lambda adapter (aws-lambda-go 
 cmd/smoke/main.go                full WebAuthn round-trip against a deployed stage
 internal/platform/               foundation: dynamo, kms, ssm, httpx (mux, envelope, key check), log, ulid
 internal/auth/                   domain: client, pin, webauthn, challenge, token
-infra/template.yaml              3 functions, 3 roles, table, KMS key, Function URLs
-scripts/setup-and-deploy/        01-ssm.sh 02-build.sh 03-deploy.sh 04-smoke.sh 99-purge.sh
+infra/template.yaml              3 functions, 3 roles, table, KMS key, Function URLs, CloudFront door
+scripts/setup-and-deploy/        00-cert.sh 01-ssm.sh 02-build.sh 03-deploy.sh 04-smoke.sh 99-purge.sh
 bruno/                           opencollection.yml, folders, environments/local.yml.example
 docs/memo/                       one decision per file
 Makefile                         dev, build, test, lint, check
@@ -237,7 +276,10 @@ storage through small interfaces it defines (`ClientStore`, `FactorStore`,
 Config (env set by SAM): `ROLE`, `STAGE`, `TABLE_NAME`, `KMS_KEY_ID` (verify),
 `KMS_KEY_IDS` (jwks), `ADMIN_KEY_PARAM` (admin; SSM SecureString path
 `/credo/auth-gate/<stage>/admin-key`, read once at cold start, boot fails if
-empty). `SIGNER=local` and `DYNAMO_ENDPOINT` are for local only.
+empty), `ORIGIN_VERIFY_PARAM` (verify and admin; SSM path
+`/credo/auth-gate/<stage>/origin-verify`, same rules), `BASE_URL` (verify; the
+token `iss`). `SIGNER=local` and `DYNAMO_ENDPOINT` are for local only; the
+origin-verify check is skipped only in `ROLE=dev`.
 
 Gate: `pnpm run check` calls `make check` = `go vet ./...` +
 `golangci-lint run` + `go test ./...`, in addition to the round-1 shellcheck.
@@ -257,7 +299,7 @@ Tests go where a bug would be silent or expensive, not one per function.
 | Challenge single-use and PIN lockout | store test against DynamoDB Local with two concurrent verifies and with N wrong PINs | the two conditional updates are the security core |
 | WebAuthn | one happy path and three failures (wrong origin, wrong rpId, regressed signCount) via `descope/virtualwebauthn` | cannot be exercised from Bruno |
 | Token | claims and `kid` shape; DER→raw conversion; JWKS round-trip with `localSigner` | consumers depend on exact shape |
-| Key check | 401 before 404; constant-time compare; body text | the boundary |
+| Key check | 401 before 404; constant-time compare; body text; missing `x-origin-verify` is 401 even with a valid access key | the boundary |
 | Smoke | `04-smoke.sh`: Bruno CLI runs the collection on stg, then `cmd/smoke` does a real WebAuthn round-trip | proves the deployed path |
 
 No tests for handlers that only marshal JSON, no mocks of the AWS SDK, no
@@ -266,12 +308,13 @@ coverage targets.
 ## 12. Bruno collection
 
 `bruno/opencollection.yml`, name `[External] Auth Gate (Lambda)`. Variables:
-`verifyUrl`, `adminUrl`, `jwksUrl`, `adminKey`, `clientKey`, `subjectId`.
+`baseUrl`, `adminKey`, `clientKey`, `subjectId` — one URL, like
+notification-manager.
 `environments/local.yml.example` is tracked; real environments are gitignored.
 
 | Folder | Content |
 |---|---|
-| `01-the-boundary/` | all expected to fail: no key, wrong key, admin route on verify URL, `#` in subjectId, replayed challenge, challenge id of another client, health on every URL → 404 |
+| `01-the-boundary/` | all expected to fail: no key, wrong key, client key on an admin route, `#` in subjectId, replayed challenge, challenge id of another client, `/health` → 404, a raw Function URL (from stack outputs, variable `rawVerifyUrl`) with a valid key → 401 |
 | `02-clients/` | create client (captures `clientKey`, `clientId`), get, rotate key |
 | `03-pin/` | enroll, challenge, verify ok, verify wrong ×N → 423, delete |
 | `04-webauthn/` | begin registration (asserts options shape and `rp.id`); finish with garbage → 400; docs point to `cmd/smoke` for the real round-trip |
@@ -284,12 +327,13 @@ on prd.
 
 `three-roles-one-binary`, `pin-goes-through-a-challenge`, `kms-signs-not-ssm`,
 `challenge-is-client-scoped`, `webauthn-without-a-browser`, `no-health-endpoint`,
-`client-key-is-a-hash-lookup`.
+`client-key-is-a-hash-lookup`, `one-door-cloudfront`.
 
 ## 14. Definition of done
 
 - `pnpm run check` green locally and in CI.
-- `03-deploy.sh` to stg prints three Function URLs; `04-smoke.sh` passes.
+- `03-deploy.sh` to stg prints one base URL (CloudFront or custom domain);
+  `04-smoke.sh` passes through it; the raw Function URLs refuse direct calls.
 - Bruno collection runs clean against stg with the CLI; `01-the-boundary/`
   all fail as asserted.
 - README (collection `docs:` and repo README) explain the credential model, the
