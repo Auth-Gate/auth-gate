@@ -529,7 +529,7 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 - Create: `docs/memo/three-roles-one-binary.md`, `pin-goes-through-a-challenge.md`, `kms-signs-not-ssm.md`, `challenge-is-client-scoped.md`, `webauthn-without-a-browser.md`, `no-health-endpoint.md`, `client-key-is-a-hash-lookup.md`, `one-door-cloudfront.md` (includes why not OAC)
 - Modify: `README.md` (replace the round-1 intro and layout; add "one base URL" + optional custom domain, credential model, relay flow diagram from spec §6.4, "how a consumer verifies a token", signing-key rotation order, local dev, deploy), `CONTRIBUTING.md` (Go toolchain, `make check`, DynamoDB Local), `bruno/opencollection.yml` `docs:` (collection README per sibling order)
 
-- [ ] **Step 1: Write each memo as: decision, context, alternatives rejected, consequences — ≤ 25 lines each.**
-- [ ] **Step 2: Update README/CONTRIBUTING; `pnpm run check`** — green.
-- [ ] **Step 3: Commit** — `docs: memos, readme and contributing for the auth-gate module`
+- [x] **Step 1: Write each memo as: decision, context, alternatives rejected, consequences — ≤ 25 lines each.**
+- [x] **Step 2: Update README/CONTRIBUTING; `pnpm run check`** — green.
+- [x] **Step 3: Commit** — `docs: memos, readme and contributing for the auth-gate module`
 - [ ] **Step 4: Write the handoff (`/handoff`), set the BOARD row to `review`.**
