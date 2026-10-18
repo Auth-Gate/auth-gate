@@ -369,3 +369,37 @@ func (s *Service) issue(ctx context.Context, c client.Client, ch challenge.Chall
 	}
 	return Token{Token: tok, ExpiresAt: exp, Factor: ch.Factor}, nil
 }
+
+// CreateClient registers a client and returns it with its first raw access
+// key. An invalid input wraps client.ErrInvalid.
+func (s *Service) CreateClient(ctx context.Context, in client.CreateInput) (client.Client, string, error) {
+	return s.Clients.Create(ctx, in)
+}
+
+// GetClient returns a client by id; an unknown id is client.ErrNotFound.
+func (s *Service) GetClient(ctx context.Context, clientID string) (client.Client, error) {
+	if err := validateIDs(clientID); err != nil {
+		return client.Client{}, err
+	}
+	return s.Clients.Get(ctx, clientID)
+}
+
+// RotateClientKey issues a new access key; previous keys keep working for 24 h.
+func (s *Service) RotateClientKey(ctx context.Context, clientID string) (string, error) {
+	if err := validateIDs(clientID); err != nil {
+		return "", err
+	}
+	return s.Clients.RotateKey(ctx, clientID)
+}
+
+// PurgeSubject deletes the subject's PIN and every passkey of an existing
+// client. Pending challenges die by TTL.
+func (s *Service) PurgeSubject(ctx context.Context, clientID, subjectID string) error {
+	if err := validateIDs(clientID, subjectID); err != nil {
+		return err
+	}
+	if _, err := s.Clients.Get(ctx, clientID); err != nil {
+		return err
+	}
+	return s.Factors.PurgeSubject(ctx, clientID, subjectID)
+}

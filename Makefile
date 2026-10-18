@@ -19,4 +19,4 @@ check:
 	go test ./...
 
 dev:
-	@echo "dev: not implemented yet (Task 11)"
+	docker compose up -d && ROLE=dev TABLE_NAME=authgate-dev DYNAMO_ENDPOINT=http://localhost:8000 SIGNER=local ADMIN_KEY=dev-admin PORT=8080 go run ./cmd/auth-gate
