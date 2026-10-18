@@ -26,8 +26,8 @@ state only. It never merges into `main`.
 
 ## Merging and removing
 
-1. Read the newest file in `handoffs/<dir>/`. It must say the work is done, and the BOARD
-   row must be `review`. Otherwise say what is missing and stop.
+1. Read the newest file in `handoffs/<dir>/`. Its "Remaining" section must be empty or
+   say `none`, and the BOARD row must be `review`. Otherwise say what is missing and stop.
 2. Print `../main/tools/wt/merge.sh <branch>`.
 3. After the human confirms it passed, print `../main/tools/wt/rm.sh <branch>`.
 4. Set the row to `merged` and commit.
@@ -35,7 +35,7 @@ state only. It never merges into `main`.
 ## Your own continuity
 
 When the context guard fires, write `handoffs/orchestrator/<yyyy-mm-dd-hhmm>.md` in the
-handoff format, commit, and print `cd /home/work/auth-gate/orchestrator && claude`.
+handoff format, commit, and print `cd <absolute path of this orchestrator worktree> && claude`.
 
 ## Commits
 
