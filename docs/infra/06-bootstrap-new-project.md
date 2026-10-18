@@ -73,8 +73,8 @@ CLAUDE.md                     # then rewrite the first paragraph for the new pro
 ```
 
 If the new project has no pnpm setup yet, also copy and adapt `package.json` (scripts
-`lint`, `typecheck`, `test`, `check`, the `shellcheck` dev dependency, `packageManager`),
-`pnpm-workspace.yaml`, `.npmrc` and `.github/workflows/ci.yml`, then run `pnpm install`
+`lint`, `test`, `check`, the `shellcheck` dev dependency, `packageManager`),
+`.npmrc` and `.github/workflows/ci.yml`, then run `pnpm install`
 to create `pnpm-lock.yaml`. If the project already has a gate under another name, set
 `WT_GATE` when running `merge.sh`, or change the default in `merge.sh`.
 
@@ -93,7 +93,7 @@ cp -R "$src/.claude" <dest>/.claude
 cp -R "$src/docs/infra" <dest>/docs/infra
 cp "$src/CLAUDE.md" "$src/.gitignore" <dest>/
 # only if <dest> has no pnpm setup yet:
-cp "$src/package.json" "$src/pnpm-workspace.yaml" "$src/.npmrc" <dest>/
+cp "$src/package.json" "$src/.npmrc" <dest>/
 mkdir -p <dest>/.github/workflows && cp "$src/.github/workflows/ci.yml" <dest>/.github/workflows/
 ```
 

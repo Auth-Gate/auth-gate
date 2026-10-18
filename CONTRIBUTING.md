@@ -24,8 +24,8 @@ If you use the worktree layout (`docs/infra/`), create the branch with:
 `pnpm run check` must pass before a branch is merged. It runs, in order:
 
 - `pnpm run lint`: shellcheck over `tools/wt/` and `.claude/` scripts.
-- `pnpm run typecheck`: `typecheck` in every workspace package that defines it.
-- `pnpm run test`: the hook test, the worktree end-to-end test, then package tests.
+- `make check`: `go vet`, `golangci-lint run`, `go test`.
+- `pnpm run test`: the hook test and the worktree end-to-end test.
 
 CI runs the same command on every push to `main` and on every pull request.
 

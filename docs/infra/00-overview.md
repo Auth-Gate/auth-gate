@@ -45,7 +45,7 @@ it (`-srv-myproj--bare`). For a real project, substitute its own path everywhere
 - **Workspace root**: the folder above all worktrees. Not a checkout; never run Claude here.
 - **`<dir>`**: a worktree's folder name. Always the branch name with `/` replaced by `-`
   (`feat/pin` lives in `feat-pin/`).
-- **Gate**: `pnpm run check` (lint, then typecheck, then test). It must pass before merge.
+- **Gate**: `pnpm run check` (`pnpm run lint`, `pnpm run test`, then `make check`). It must pass before merge.
 - **BOARD**: `orchestrator/BOARD.md`, one table of who does what.
 - **Brief**: `orchestrator/handoffs/<dir>/00-brief.md`, the assignment.
 - **Handoff**: `orchestrator/handoffs/<dir>/<yyyy-mm-dd-hhmm>.md`, where a session stopped.
@@ -88,7 +88,7 @@ at 70 % and orders a handoff at 85 %.
 
 **05-pnpm.** pnpm keeps one content-addressable store and hard-links packages into each
 worktree, so worktrees do not multiply disk use. Corepack's pnpm shim can fail signature
-verification; install pnpm globally instead. The gate is `lint && typecheck && test`.
+verification; install pnpm globally instead. The gate is `lint && test && make check`.
 
 **06-bootstrap-new-project.** Prerequisites, files to copy, values to substitute, the
 "fresh from a remote" path (`init.sh`), the "convert an existing checkout" path, and the

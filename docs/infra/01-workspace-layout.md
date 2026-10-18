@@ -63,9 +63,8 @@ main/
 │   ├── adr/                  # architecture decision records
 │   └── superpowers/          # specs and plans
 ├── tools/wt/                 # worktree scripts, and tools/wt/test/
-├── packages/  apps/          # pnpm workspace members
 ├── .github/workflows/ci.yml  # runs the gate
-├── .gitignore  .npmrc  package.json  pnpm-workspace.yaml  pnpm-lock.yaml
+├── .gitignore  .npmrc  package.json  pnpm-lock.yaml
 ├── CLAUDE.md                 # rules for feature sessions
 └── README.md  LICENSE  CONTRIBUTING.md
 ```

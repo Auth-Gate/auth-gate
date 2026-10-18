@@ -45,7 +45,7 @@ Then:
 
 ```bash
 pnpm install
-pnpm run check   # lint, then typecheck, then test
+pnpm run check   # lint, shell tests, then make check (Go)
 ```
 
 ## Worktree workflow
