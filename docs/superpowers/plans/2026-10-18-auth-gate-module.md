@@ -253,7 +253,7 @@ func TestHashVerifyHonoursStoredParams(t *testing.T) // rec := Hash("493817"); r
   ```
   `RecordPINFailure` is one `UpdateItem`: `ADD failedCount :one`; when the returned count ≥ maxAttempts, a second `UpdateItem` sets `lockedUntil` and resets `failedCount` to 0. Keys: `S#<clientId>#<subjectId>` / `PIN` and `WA#<credentialId>`.
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```go
 func TestPINLockoutAfterMaxAttempts(t *testing.T) // dynamotest; PutPIN; 4× RecordPINFailure(max 5) → lockedUntil nil, counts 1..4
@@ -261,10 +261,10 @@ func TestPINLockoutAfterMaxAttempts(t *testing.T) // dynamotest; PutPIN; 4× Rec
 func TestPurgeSubjectRemovesPINAndCredentials(t *testing.T) // PutPIN + 2 PutCredential; PurgeSubject; GetPIN ErrNotFound; ListCredentials len 0, not nil
 ```
 
-- [ ] **Step 2: Run with endpoint** — Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — Expected: PASS.
-- [ ] **Step 5: Commit** — `feat(factor): pin and credential storage with lockout and purge`
+- [x] **Step 2: Run with endpoint** — Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — Expected: PASS.
+- [x] **Step 5: Commit** — `feat(factor): pin and credential storage with lockout and purge`
 
 ---
 
