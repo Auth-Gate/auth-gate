@@ -7,3 +7,5 @@ node_modules/
 bruno/environments/*.yml
 !bruno/environments/*.example.yml
 .superpowers/
+bin/
+.aws-sam/
