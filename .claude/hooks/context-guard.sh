@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook: warn Claude when context usage is high. Always exits 0.
+set -euo pipefail
 WARN=70
 STOP=85
 

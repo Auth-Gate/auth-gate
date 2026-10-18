@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # SessionStart hook: inject the BOARD row and latest handoff. Always exits 0.
+set -euo pipefail
 
 main() {
   local cwd dir orch branch row f c
@@ -16,7 +17,7 @@ main() {
     cat "$orch/BOARD.md" 2>/dev/null || echo "No BOARD.md found."
     return 0
   fi
-  row="$(grep -F "| $dir |" "$orch/BOARD.md" 2>/dev/null | head -n1 || true)"
+  row="$(awk -F'|' -v d="$dir" '{ x = $2; gsub(/^ +| +$/, "", x); if (x == d) { print; exit } }' "$orch/BOARD.md" 2>/dev/null || true)"
   if [ -n "$row" ]; then
     echo "$row"
   else

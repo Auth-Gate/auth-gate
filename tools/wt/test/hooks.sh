@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016
 # Hermetic test for the .claude statusline and hooks.
 set -euo pipefail
 
@@ -43,8 +44,14 @@ git -C "$tmp/ws/feat-none" checkout -q -b feat/none
 guard() { echo '{"session_id":"t1"}' | bash "$dotclaude/hooks/context-guard.sh"; }
 
 out="$(printf '{"session_id":"t1","workspace":{"current_dir":"%s"},"context_window":{"used_percentage":42.7},"cost":{"total_cost_usd":0.123}}' "$tmp/ws/feat-x" | bash "$dotclaude/statusline.sh")"
-# shellcheck disable=SC2016
 assert "statusline: text" test "$out" = 'feat/x | ctx 42% | $0.12'
+out="$(echo '{"session_id":"t2","cost":{"total_cost_usd":"abc"},"context_window":{"used_percentage":null}}' | bash "$dotclaude/statusline.sh")"
+assert "statusline: null/bad fields" grep -qF 'ctx 0% | $0.00' <<<"$out"
+out="$(echo '{}' | bash "$dotclaude/statusline.sh")"
+assert "statusline: empty object" grep -q 'ctx 0%' <<<"$out"
+echo '{"session_id":"../x","context_window":{"used_percentage":9}}' | bash "$dotclaude/statusline.sh" >/dev/null
+assert "statusline: traversal id stays inside ctx dir" test -f "$tmp/ctx/___x"
+refute "statusline: traversal id wrote nothing outside" test -e "$tmp/x"
 assert "statusline: file" test "$(cat "$tmp/ctx/t1")" = 42
 assert "guard: silent below 70" test -z "$(guard)"
 refute "guard: no warning below 70" grep -q 'context-guard' <<<"$(guard)"
