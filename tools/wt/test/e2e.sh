@@ -40,6 +40,7 @@ seed_remote() {
   rm -rf "$seed/tools/wt/test"
   [ -d "$repo/docs/infra/templates" ] && cp -R "$repo/docs/infra/templates" "$seed/docs/infra/templates"
   [ -d "$repo/.claude" ] && cp -R "$repo/.claude" "$seed/.claude"
+  [ -f "$repo/.gitignore" ] && cp "$repo/.gitignore" "$seed/.gitignore"
   echo '{"name":"e2e","private":true}' >"$seed/package.json"
   git -C "$seed" add -A
   git -C "$seed" commit -q -m "chore: seed"
@@ -68,10 +69,76 @@ assert "init: local symlinks" test -L "$tmp/ws/main/local" -a -L "$tmp/ws/orches
 assert "init: .bare/claude link" test "$(readlink "$tmp/ws/.bare/claude")" = "$CLAUDE_PROJECTS_DIR/$(cd "$tmp/ws" && bare_key)"
 refute "init: idempotent refusal" "$wt/init.sh" "$tmp/remote.git" "$tmp/ws"
 
-# --- new.sh --- (appended by a later task)
-# --- merge.sh --- (appended by a later task)
-# --- rm.sh --- (appended by a later task)
-# --- status.sh --- (appended by a later task)
-# --- claude-link.sh --- (appended by a later task)
+# Run a command from inside the main worktree (stdout kept, stderr hidden).
+inmain() { (cd "$tmp/ws/main" && "$@" 2>"$tmp/inmain.err"); }
+
+# --- new.sh ---
+inmain ./tools/wt/new.sh feat/x --no-install >/dev/null || nok "new: feat/x creation failed"
+assert "new: worktree on branch" test "$(git -C "$tmp/ws/feat-x" branch --show-current)" = feat/x
+assert "new: forked from main" test "$(git -C "$tmp/ws/feat-x" rev-parse HEAD)" = "$(git -C "$tmp/ws/main" rev-parse HEAD)"
+assert "new: local symlink" test -L "$tmp/ws/feat-x/local"
+refute "new: no upstream yet" git -C "$tmp/ws/feat-x" rev-parse --abbrev-ref '@{u}'
+before="$(git -C "$tmp/ws/main" worktree list | wc -l)"
+refute "new: refuses a branch already checked out" inmain ./tools/wt/new.sh feat/x --no-install
+assert "new: worktree list unchanged" test "$(git -C "$tmp/ws/main" worktree list | wc -l)" = "$before"
+leftovers=0
+for entry in "$CLAUDE_PROJECTS_DIR"/*; do
+  case "${entry##*/}" in
+    "$(cd "$tmp/ws" && bare_key)" | "$(key_of "$tmp/ws/feat-x")") ;;
+    *) leftovers=$((leftovers + 1)) ;;
+  esac
+done
+assert "new: nothing half-created" test "$leftovers" = 0
+inmain ./tools/wt/new.sh feat/pushed --no-install --push >/dev/null || nok "new: feat/pushed creation failed"
+assert "new --push: upstream set" test "$(git -C "$tmp/ws/feat-pushed" rev-parse --abbrev-ref '@{u}')" = origin/feat/pushed
+
+# --- claude-link.sh ---
+link="$CLAUDE_PROJECTS_DIR/$(key_of "$tmp/ws/feat-x")"
+target="$CLAUDE_PROJECTS_DIR/$(cd "$tmp/ws" && bare_key)"
+assert "link: created by new.sh" test "$(readlink "$link")" = "$target"
+inmain ./tools/wt/claude-link.sh "$tmp/ws/feat-x" >/dev/null || nok "link: rerun failed"
+assert "link: idempotent" test "$(readlink "$link")" = "$target"
+rm -f "$link"
+mkdir -p "$link"
+echo x >"$link/old.jsonl"
+inmain ./tools/wt/claude-link.sh "$tmp/ws/feat-x" >/dev/null || nok "link: backup run failed"
+assert "link: real dir backed up" ls -d "$link".bak-*
+assert "link: backup keeps content" test -f "$link".bak-*/old.jsonl
+assert "link: now a symlink" test "$(readlink "$link")" = "$target"
+
+# --- merge.sh ---
+echo change >"$tmp/ws/feat-x/CHANGE"
+git -C "$tmp/ws/feat-x" add CHANGE
+git -C "$tmp/ws/feat-x" commit -qm "feat: change"
+echo dirty >"$tmp/ws/feat-x/DIRTY"
+refute "merge: refuses dirty worktree" inmain ./tools/wt/merge.sh feat/x
+assert "merge: main untouched after refusal" test "$(git -C "$tmp/ws/main" rev-list --count HEAD)" = 1
+rm "$tmp/ws/feat-x/DIRTY"
+refute "merge: gate failure stops the merge" bash -c "cd '$tmp/ws/main' && WT_GATE=false ./tools/wt/merge.sh feat/x"
+inmain ./tools/wt/merge.sh feat/x >/dev/null || { nok "merge: merge run failed"; cat "$tmp/inmain.err"; }
+assert "merge: main fast-forwarded" test "$(git -C "$tmp/ws/main" rev-parse HEAD)" = "$(git -C "$tmp/ws/feat-x" rev-parse HEAD)"
+assert "merge: main pushed" test "$(git -C "$tmp/ws/main" rev-parse origin/main)" = "$(git -C "$tmp/ws/main" rev-parse HEAD)"
+assert "merge: history is linear" test "$(git -C "$tmp/ws/main" rev-list --merges --count HEAD)" = 0
+
+# --- status.sh ---
+echo p >"$tmp/ws/feat-pushed/P"
+git -C "$tmp/ws/feat-pushed" add P
+git -C "$tmp/ws/feat-pushed" commit -qm "feat: pushed-only change"
+out="$(inmain ./tools/wt/status.sh)" || nok "status: run failed"
+assert "status: lists worktrees" grep -q 'feat-x' <<<"$out"
+assert "status: shows ahead/behind" grep -q 'feat/pushed: ahead 1, behind 1 (vs main)' <<<"$out"
+assert "status: shows board" grep -q '| Worktree |' <<<"$out"
+
+# --- rm.sh ---
+refute "rm: refuses unmerged without --force" inmain ./tools/wt/rm.sh feat/pushed
+assert "rm: unmerged still there" test -d "$tmp/ws/feat-pushed"
+inmain ./tools/wt/rm.sh feat/x >/dev/null || nok "rm: feat/x removal failed"
+assert "rm: worktree gone" test ! -e "$tmp/ws/feat-x"
+refute "rm: local branch gone" git -C "$tmp/ws/main" show-ref --verify --quiet refs/heads/feat/x
+assert "rm: claude link gone" test ! -e "$CLAUDE_PROJECTS_DIR/$(key_of "$tmp/ws/feat-x")" -a ! -L "$CLAUDE_PROJECTS_DIR/$(key_of "$tmp/ws/feat-x")"
+rm -rf "$tmp/ws/feat-pushed" # deleted by hand, stale metadata remains
+inmain ./tools/wt/rm.sh feat/pushed --force >/dev/null || nok "rm --force: run failed"
+refute "rm --force: stale worktree pruned" bash -c "git -C '$tmp/ws/main' worktree list | grep -q feat-pushed"
+refute "rm --force: remote branch gone" git -C "$tmp/ws/main" ls-remote --exit-code --heads origin feat/pushed
 
 [ "$fail" = 0 ]
