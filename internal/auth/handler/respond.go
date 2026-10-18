@@ -22,6 +22,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_id", nil)
 	case errors.Is(err, httpx.ErrBadJSON):
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_json", nil)
+	case errors.Is(err, service.ErrRegistrationFailed):
+		httpx.WriteError(w, http.StatusBadRequest, "registration_failed", nil)
 	case errors.Is(err, service.ErrPINRejected):
 		httpx.WriteError(w, http.StatusBadRequest, "pin_rejected", nil)
 	case errors.As(err, &vf):

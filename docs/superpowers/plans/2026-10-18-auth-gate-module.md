@@ -429,7 +429,7 @@ func TestWrongFactorAndMissingFactor(t *testing.T) // BeginChallenge(webauthn) f
   ```
   Routes added: `POST /api/webauthn/registrations`, `POST /api/webauthn/registrations/{id}`, `DELETE /api/webauthn/credentials/{id}` (query `subjectId`). `POST /api/challenges/{id}/verify` dispatches on which of `pin`/`credential` is present in the body; both or neither → 400 `invalid_json`.
 
-- [ ] **Step 1: Write failing tests with `github.com/descope/virtualwebauthn`**
+- [x] **Step 1: Write failing tests with `github.com/descope/virtualwebauthn`**
 
 ```go
 // setup: rp := virtualwebauthn.NewRelyingParty("Demo","app.example.com","https://app.example.com"); auth := NewAuthenticator(); cred := NewCredential(KeyTypeEC2); client with RPID app.example.com, Origins [https://app.example.com]
@@ -438,8 +438,8 @@ func TestWebAuthnRejectsWrongOriginAndRPID(t *testing.T) // same flow but rp bui
 func TestWebAuthnRejectsRegressedSignCount(t *testing.T) // after one good assertion, set cred.Counter back to 0 → VerifyWebAuthn → VerificationFailed
 ```
 
-- [ ] **Step 2: Run with endpoint** — Expected: FAIL. **Step 3: Implement.** **Step 4: Run** — PASS.
-- [ ] **Step 5: Commit** — `feat(webauthn): passkey registration and assertion through the client relay`
+- [x] **Step 2: Run with endpoint** — Expected: FAIL. **Step 3: Implement.** **Step 4: Run** — PASS.
+- [x] **Step 5: Commit** — `feat(webauthn): passkey registration and assertion through the client relay`
 
 ---
 

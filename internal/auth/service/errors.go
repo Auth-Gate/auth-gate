@@ -15,8 +15,8 @@ var (
 	ErrWrongFactor = errors.New("service: wrong factor")
 	// ErrPINRejected means the PIN violates the client's policy.
 	ErrPINRejected = errors.New("service: pin rejected")
-	// errNotImplemented marks the WebAuthn paths filled in by Task 10.
-	errNotImplemented = errors.New("service: not implemented")
+	// ErrRegistrationFailed means the attestation did not verify.
+	ErrRegistrationFailed = errors.New("service: registration failed")
 )
 
 // VerificationFailed is a wrong PIN or invalid assertion on a live challenge.

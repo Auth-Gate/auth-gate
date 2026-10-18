@@ -3,6 +3,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,16 +12,22 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	gowa "github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/huy090202/auth-gate/internal/auth/challenge"
 	"github.com/huy090202/auth-gate/internal/auth/client"
 	"github.com/huy090202/auth-gate/internal/auth/factor"
 	"github.com/huy090202/auth-gate/internal/auth/pin"
 	"github.com/huy090202/auth-gate/internal/auth/token"
+	"github.com/huy090202/auth-gate/internal/auth/webauthn"
 	"github.com/huy090202/auth-gate/internal/platform/id"
 )
 
-const challengeTTL = 5 * time.Minute
+const (
+	challengeTTL = 5 * time.Minute
+	// webauthnMaxAttempts bounds assertions per challenge; passkeys are not guessable.
+	webauthnMaxAttempts = 3
+)
 
 // Service wires the stores and the signer behind the verify API.
 type Service struct {
@@ -156,7 +163,22 @@ func (s *Service) BeginChallenge(ctx context.Context, c client.Client, subjectID
 		if len(creds) == 0 {
 			return challenge.Challenge{}, nil, ErrFactorNotFound
 		}
-		return challenge.Challenge{}, nil, fmt.Errorf("webauthn challenge: %w", errNotImplemented)
+		wa, err := webauthn.For(c)
+		if err != nil {
+			return challenge.Challenge{}, nil, err
+		}
+		assertion, session, err := wa.BeginLogin(webauthn.NewUser(subjectID, "", creds))
+		if err != nil {
+			return challenge.Challenge{}, nil, fmt.Errorf("begin login: %w", err)
+		}
+		if ch.Session, err = json.Marshal(session); err != nil {
+			return challenge.Challenge{}, nil, err
+		}
+		ch.MaxAttempts = webauthnMaxAttempts
+		if err := s.Challenges.Create(ctx, ch); err != nil {
+			return challenge.Challenge{}, nil, err
+		}
+		return ch, assertion, nil
 	default:
 		return challenge.Challenge{}, nil, ErrWrongFactor
 	}
@@ -211,20 +233,132 @@ func (s *Service) VerifyPIN(ctx context.Context, c client.Client, challengeID, p
 	return s.issue(ctx, c, ch, now)
 }
 
-// VerifyWebAuthn spends one attempt and checks the factor. The assertion
-// check itself is added in Task 10.
-func (s *Service) VerifyWebAuthn(ctx context.Context, c client.Client, challengeID string, _ json.RawMessage) (Token, error) {
+// VerifyWebAuthn spends one attempt on the challenge and, on a valid
+// assertion, completes it, records the credential use and issues the token.
+func (s *Service) VerifyWebAuthn(ctx context.Context, c client.Client, challengeID string, body []byte) (Token, error) {
 	if err := validateIDs(challengeID); err != nil {
 		return Token{}, err
 	}
-	ch, err := s.Challenges.Attempt(ctx, c.ID, challengeID, s.now())
+	now := s.now()
+	ch, err := s.Challenges.Attempt(ctx, c.ID, challengeID, now)
 	if err != nil {
 		return Token{}, err
 	}
 	if ch.Factor != challenge.FactorWebAuthn {
 		return Token{}, ErrWrongFactor
 	}
-	return Token{}, fmt.Errorf("webauthn verify: %w", errNotImplemented)
+	failed := VerificationFailed{AttemptsRemaining: ch.MaxAttempts - ch.Attempts}
+	var session gowa.SessionData
+	if err := json.Unmarshal(ch.Session, &session); err != nil {
+		return Token{}, fmt.Errorf("challenge session: %w", err)
+	}
+	parsed, err := protocol.ParseCredentialRequestResponseBody(bytes.NewReader(body))
+	if err != nil {
+		return Token{}, failed
+	}
+	creds, err := s.Factors.ListCredentials(ctx, c.ID, ch.SubjectID)
+	if err != nil {
+		return Token{}, err
+	}
+	wa, err := webauthn.For(c)
+	if err != nil {
+		return Token{}, err
+	}
+	user := webauthn.NewUser(ch.SubjectID, "", creds)
+	// The backup-eligible flag is not stored, so take it from the assertion;
+	// otherwise go-webauthn rejects every synced passkey.
+	stored := user.WebAuthnCredentials()
+	for i := range stored {
+		stored[i].Flags.BackupEligible = parsed.Response.AuthenticatorData.Flags.HasBackupEligible()
+	}
+	cred, err := wa.ValidateLogin(user, session, parsed)
+	if err != nil || cred.Authenticator.CloneWarning {
+		return Token{}, failed
+	}
+	if err := s.Challenges.Complete(ctx, c.ID, ch.ID, now); err != nil {
+		return Token{}, err
+	}
+	// The challenge is consumed; a failed use update must not cost the caller the token.
+	if err := s.Factors.UpdateCredentialUse(ctx, c.ID, ch.SubjectID, webauthn.EncodeID(cred.ID), cred.Authenticator.SignCount, now); err != nil {
+		slog.Error("update credential use", "client", c.ID, "err", err)
+	}
+	return s.issue(ctx, c, ch, now)
+}
+
+// BeginRegistration opens a five-minute passkey registration. The subject's
+// existing credentials are excluded.
+func (s *Service) BeginRegistration(ctx context.Context, c client.Client, subjectID, displayName string) (challenge.Registration, *protocol.CredentialCreation, error) {
+	if err := validateIDs(subjectID); err != nil {
+		return challenge.Registration{}, nil, err
+	}
+	creds, err := s.Factors.ListCredentials(ctx, c.ID, subjectID)
+	if err != nil {
+		return challenge.Registration{}, nil, err
+	}
+	wa, err := webauthn.For(c)
+	if err != nil {
+		return challenge.Registration{}, nil, err
+	}
+	user := webauthn.NewUser(subjectID, displayName, creds)
+	exclusions := gowa.Credentials(user.WebAuthnCredentials()).CredentialDescriptors()
+	creation, session, err := wa.BeginRegistration(user, gowa.WithExclusions(exclusions))
+	if err != nil {
+		return challenge.Registration{}, nil, fmt.Errorf("begin registration: %w", err)
+	}
+	raw, err := json.Marshal(session)
+	if err != nil {
+		return challenge.Registration{}, nil, err
+	}
+	reg := challenge.Registration{
+		ID: id.New(), ClientID: c.ID, SubjectID: subjectID, DisplayName: displayName,
+		Session: raw, ExpiresAt: s.now().Add(challengeTTL),
+	}
+	if err := s.Challenges.PutRegistration(ctx, reg); err != nil {
+		return challenge.Registration{}, nil, err
+	}
+	return reg, creation, nil
+}
+
+// FinishRegistration consumes the registration and stores the verified
+// credential, returning its base64url ID.
+func (s *Service) FinishRegistration(ctx context.Context, c client.Client, registrationID string, body []byte) (string, error) {
+	if err := validateIDs(registrationID); err != nil {
+		return "", err
+	}
+	now := s.now()
+	reg, err := s.Challenges.TakeRegistration(ctx, c.ID, registrationID, now)
+	if err != nil {
+		return "", err
+	}
+	var session gowa.SessionData
+	if err := json.Unmarshal(reg.Session, &session); err != nil {
+		return "", fmt.Errorf("registration session: %w", err)
+	}
+	parsed, err := protocol.ParseCredentialCreationResponseBody(bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrRegistrationFailed, err)
+	}
+	wa, err := webauthn.For(c)
+	if err != nil {
+		return "", err
+	}
+	wc, err := wa.CreateCredential(webauthn.NewUser(reg.SubjectID, reg.DisplayName, nil), session, parsed)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrRegistrationFailed, err)
+	}
+	fc := webauthn.ToCredential(wc, reg.DisplayName, now)
+	if err := s.Factors.PutCredential(ctx, c.ID, reg.SubjectID, fc); err != nil {
+		return "", err
+	}
+	return fc.ID, nil
+}
+
+// DeleteCredential removes one of the subject's passkeys; it is idempotent.
+func (s *Service) DeleteCredential(ctx context.Context, c client.Client, subjectID, credentialID string) error {
+	if err := validateIDs(subjectID, credentialID); err != nil {
+		return err
+	}
+	return s.Factors.DeleteCredential(ctx, c.ID, subjectID, credentialID)
 }
 
 func (s *Service) issue(ctx context.Context, c client.Client, ch challenge.Challenge, now time.Time) (Token, error) {
