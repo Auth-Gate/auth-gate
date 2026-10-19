@@ -14,7 +14,10 @@
     {
       "Sid": "ReadTemplates",
       "Effect": "Allow",
-      "Action": ["cloudformation:ValidateTemplate", "cloudformation:GetTemplateSummary"],
+      "Action": [
+        "cloudformation:ValidateTemplate",
+        "cloudformation:GetTemplateSummary"
+      ],
       "Resource": "*"
     },
     {
@@ -54,7 +57,11 @@
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": "arn:aws:iam::826113468815:role/auth-gate-*",
-      "Condition": { "StringEquals": { "iam:PassedToService": "lambda.amazonaws.com" } }
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "lambda.amazonaws.com"
+        }
+      }
     },
     {
       "Sid": "ManageTheTable",
@@ -77,15 +84,20 @@
     {
       "Sid": "CreateTheSigningKey",
       "Effect": "Allow",
-      "Action": ["kms:CreateKey", "kms:DescribeKey", "kms:TagResource", "kms:ListAliases"],
+      "Action": [
+        "kms:CreateKey",
+        "kms:DescribeKey",
+        "kms:TagResource",
+        "kms:ListAliases",
+        "kms:PutKeyPolicy",
+        "kms:GetKeyPolicy"
+      ],
       "Resource": "*"
     },
     {
       "Sid": "ManageTheSigningKey",
       "Effect": "Allow",
       "Action": [
-        "kms:GetKeyPolicy",
-        "kms:PutKeyPolicy",
         "kms:UpdateKeyDescription",
         "kms:EnableKey",
         "kms:DisableKey",
@@ -97,12 +109,20 @@
         "kms:UpdateAlias"
       ],
       "Resource": "arn:aws:kms:ap-southeast-1:826113468815:key/*",
-      "Condition": { "ForAnyValue:StringLike": { "kms:ResourceAliases": "alias/auth-gate-*" } }
+      "Condition": {
+        "ForAnyValue:StringLike": {
+          "kms:ResourceAliases": "alias/auth-gate-*"
+        }
+      }
     },
     {
       "Sid": "AliasTheSigningKey",
       "Effect": "Allow",
-      "Action": ["kms:CreateAlias", "kms:DeleteAlias", "kms:UpdateAlias"],
+      "Action": [
+        "kms:CreateAlias",
+        "kms:DeleteAlias",
+        "kms:UpdateAlias"
+      ],
       "Resource": [
         "arn:aws:kms:ap-southeast-1:826113468815:alias/auth-gate-*",
         "arn:aws:kms:ap-southeast-1:826113468815:key/*"
@@ -160,7 +180,11 @@
     {
       "Sid": "Diagnostics",
       "Effect": "Allow",
-      "Action": ["logs:DescribeLogGroups", "logs:FilterLogEvents", "logs:GetLogEvents"],
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents"
+      ],
       "Resource": "*"
     }
   ]
