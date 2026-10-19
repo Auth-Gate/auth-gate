@@ -72,6 +72,10 @@ Resources:
       Description: !Sub auth-gate ${Stage} ES256 token signing key
       KeySpec: ECC_NIST_P256
       KeyUsage: SIGN_VERIFY
+      # The deployer's KMS rights are scoped by this tag (infra/deployer-policy.json): the
+      # alias is already gone when CloudFormation deletes the key.
+      Tags:
+        - { Key: app, Value: auth-gate }
       KeyPolicy:
         Version: "2012-10-17"
         Statement:

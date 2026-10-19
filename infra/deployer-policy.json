@@ -110,8 +110,8 @@
       ],
       "Resource": "arn:aws:kms:ap-southeast-1:826113468815:key/*",
       "Condition": {
-        "ForAnyValue:StringLike": {
-          "kms:ResourceAliases": "alias/auth-gate-*"
+        "StringEquals": {
+          "aws:ResourceTag/app": "auth-gate"
         }
       }
     },
