@@ -124,6 +124,15 @@ The deploy and smoke steps are manual and run by a person with AWS access. They 
 5. `04-smoke.sh`: run the Bruno collection, then `cmd/smoke`, a real WebAuthn round trip.
 6. `99-purge.sh`: tear the stage down.
 
+Prerequisites: AWS CLI v2 and SAM CLI. A new AWS account may refuse the distribution with
+"Your account must be verified before you can add new CloudFront resources"; only AWS Support
+can lift that (open an Account and billing case), so do it before the first deploy.
+
+If a deploy fails, CloudFormation rolls back and leaves the stack in `ROLLBACK_COMPLETE`
+(or `ROLLBACK_FAILED`), which cannot be updated: delete it with
+`aws cloudformation delete-stack --stack-name auth-gate-<stage>` before deploying again. A
+missing deployer permission goes into `infra/deployer-policy.json`; rerun `00-deployer.sh`.
+
 ## Repository layout
 
 ```text
