@@ -108,8 +108,12 @@ also runs the store tests against DynamoDB Local.
 ## Deploy
 
 The deploy and smoke steps are manual and run by a person with AWS access. They live in
-`scripts/setup-and-deploy/` and read `STAGE` (default `stg`), `AWS_PROFILE` and `AWS_REGION`:
+`scripts/setup-and-deploy/` and read `STAGE` (default `stg`), `AWS_PROFILE` (default
+`auth-gate-deployer`) and `AWS_REGION` (default `ap-southeast-1`):
 
+0. `00-deployer.sh` (once per account, with an admin profile: `ADMIN_PROFILE=default`): create
+   the IAM user `auth-gate-deployer` with `infra/deployer-policy.json`, scoped to `auth-gate-*`
+   resources, and a local AWS profile of the same name.
 1. `00-cert.sh DOMAIN` (optional): request an ACM certificate in `us-east-1`.
 2. `01-ssm.sh`: write the random `admin-key` (SecureString) and `origin-verify` (plain
    String; CloudFront cannot resolve a SecureString).

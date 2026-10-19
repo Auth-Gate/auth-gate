@@ -1,7 +1,7 @@
 # Shared settings for the setup-and-deploy scripts. Sourced, not run.
 # shellcheck shell=bash
 STAGE="${STAGE:-stg}"
-export AWS_PROFILE="${AWS_PROFILE:-credo-stg-ops}"
+export AWS_PROFILE="${AWS_PROFILE:-auth-gate-deployer}"
 REGION="${AWS_REGION:-ap-southeast-1}"
 STACK="auth-gate-$STAGE"
 PARAM_PREFIX="/credo/auth-gate/$STAGE"
