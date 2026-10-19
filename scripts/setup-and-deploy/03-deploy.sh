@@ -33,13 +33,18 @@ output() {
 }
 
 deploy() {
+  # sam rejects empty overrides ("DomainName="), so pass only the set ones;
+  # the template defaults every optional parameter to "".
+  local params=("Stage=$STAGE")
+  [ -z "$domain" ] || params+=("DomainName=$domain")
+  [ -z "$cert" ] || params+=("CertificateArn=$cert")
+  [ -z "$zone" ] || params+=("HostedZoneId=$zone")
+  [ -z "$1" ] || params+=("DistributionBaseUrl=$1")
   sam deploy --template-file "$ROOT/infra/template.yaml" \
     --stack-name "$STACK" --region "$REGION" \
     --capabilities CAPABILITY_IAM --resolve-s3 \
     --no-confirm-changeset --no-fail-on-empty-changeset \
-    --parameter-overrides \
-    "Stage=$STAGE" "DomainName=$domain" "CertificateArn=$cert" \
-    "HostedZoneId=$zone" "DistributionBaseUrl=$1"
+    --parameter-overrides "${params[@]}"
 }
 
 dist_url=""
