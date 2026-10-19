@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Rebase a feature branch on main, run the gate, fast-forward main:
+# Rebase a feature branch on main, run the gate, then merge it with a merge commit
+# (semi-linear history: each feature is a straight run of commits closed by one merge):
 #   merge.sh <branch> [--no-push]
 set -euo pipefail
 
@@ -53,8 +54,8 @@ git -C "$root/$dir" rebase "$BASE_BRANCH" ||
 step "Running gate: $gate"
 (cd "$root/$dir" && eval "$gate")
 
-step "Fast-forwarding $BASE_BRANCH to $branch"
-git -C "$main" merge -q --ff-only "$branch"
+step "Merging $branch into $BASE_BRANCH"
+git -C "$main" merge -q --no-ff -m "Merge branch '$branch'" "$branch"
 
 if [ "$push" = 1 ]; then
   step "Pushing $BASE_BRANCH"

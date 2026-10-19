@@ -137,10 +137,12 @@ rm "$tmp/ws/feat-x/DIRTY"
 refute "merge: gate failure stops the merge" bash -c "cd '$tmp/ws/main' && WT_GATE=false ./tools/wt/merge.sh feat/x"
 assert "merge: main HEAD unchanged after gate failure" test "$(git -C "$tmp/ws/main" rev-parse HEAD)" = "$main_head"
 inmain ./tools/wt/merge.sh feat/x >/dev/null || { nok "merge: merge run failed"; cat "$tmp/inmain.err"; }
-assert "merge: main fast-forwarded" test "$(git -C "$tmp/ws/main" rev-parse HEAD)" = "$(git -C "$tmp/ws/feat-x" rev-parse HEAD)"
+assert "merge: main is a merge commit of feat/x" test "$(git -C "$tmp/ws/main" rev-parse HEAD^2)" = "$(git -C "$tmp/ws/feat-x" rev-parse HEAD)"
+assert "merge: first parent is the old main" test "$(git -C "$tmp/ws/main" rev-parse HEAD^1)" = "$main_head"
 assert "merge: main pushed" test "$(git -C "$tmp/ws/main" rev-parse origin/main)" = "$(git -C "$tmp/ws/main" rev-parse HEAD)"
 assert "merge: feat-x was rebased onto main" git -C "$tmp/ws/main" merge-base --is-ancestor "$main_head" HEAD
-assert "merge: history is linear" test "$(git -C "$tmp/ws/main" rev-list --merges --count HEAD)" = 0
+assert "merge: exactly one merge commit" test "$(git -C "$tmp/ws/main" rev-list --merges --count HEAD)" = 1
+assert "merge: semi-linear (feature has no merges of its own)" test "$(git -C "$tmp/ws/main" rev-list --merges --count HEAD^1..HEAD^2)" = 0
 
 # --- status.sh ---
 echo p >"$tmp/ws/feat-pushed/P"
@@ -148,7 +150,8 @@ git -C "$tmp/ws/feat-pushed" add P
 git -C "$tmp/ws/feat-pushed" commit -qm "feat: pushed-only change"
 out="$(inmain ./tools/wt/status.sh)" || nok "status: run failed"
 assert "status: lists worktrees" grep -q 'feat-x' <<<"$out"
-assert "status: shows ahead/behind" grep -q 'feat/pushed: ahead 1, behind 2 (vs main)' <<<"$out"
+# behind 3: the main change, the feat/x commit and the merge commit
+assert "status: shows ahead/behind" grep -q 'feat/pushed: ahead 1, behind 3 (vs main)' <<<"$out"
 assert "status: shows board" grep -q '| Worktree |' <<<"$out"
 
 # --- rm.sh ---

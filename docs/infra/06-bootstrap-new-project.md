@@ -266,7 +266,7 @@ The setup is done when all of these pass. Use a throwaway feature such as `feat/
 7. The transcript smoke test has a recorded result: after `claude-link.sh`, a `claude -p`
    run in the feature worktree leaves its transcript under `<root>/.bare/claude/`, and
    the worktree key is still a symlink. Record the outcome in `04-claude-sessions.md`.
-8. `merge.sh` on the feature fast-forwards `main`; `rm.sh` then leaves no worktree, no
+8. `merge.sh` on the feature merges it into `main` with one merge commit; `rm.sh` then leaves no worktree, no
    local branch, no remote branch, and no dangling Claude symlink.
 9. `init.sh` run in a scratch directory against the remote reproduces the layout
    (`.bare`, `.git`, `local`, `main`, `orchestrator`), with `orchestrator` tracking the

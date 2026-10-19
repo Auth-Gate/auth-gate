@@ -73,7 +73,7 @@ symlinked into every worktree and ignored by git through the `/local` pattern.
 **02-worktree-lifecycle.** Five steps: assign (orchestrator writes a BOARD row and a brief,
 prints `new.sh`), build (the feature session starts with its brief injected), hand off
 (`/handoff` writes a handoff and updates the BOARD), merge (`merge.sh` rebases, runs the
-gate, fast-forwards and pushes `main`), remove (`rm.sh` deletes the worktree, branches and
+gate, merges with a merge commit and pushes `main`), remove (`rm.sh` deletes the worktree, branches and
 Claude link). Then every script's flags, the raw git commands behind each, and recovery.
 
 **03-orchestrator.** One Claude session in `orchestrator/` coordinates. It never writes

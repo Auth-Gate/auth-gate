@@ -63,7 +63,7 @@ other projects on the machine may rely on corepack for yarn.
 ### The gate
 
 `pnpm run check` is the gate. `merge.sh` runs it in the feature worktree before
-fast-forwarding `main`, and CI runs it on every push to `main` and every pull request.
+merging into `main`, and CI runs it on every push to `main` and every pull request.
 
 ```json
 "scripts": {

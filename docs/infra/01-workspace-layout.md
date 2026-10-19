@@ -36,7 +36,8 @@ lookup, and sessions can reach each other's files with `../<dir>`.
 - **Directory name = branch name with `/` replaced by `-`.** `feat/pin` lives in
   `feat-pin/`. No exceptions. `tools/wt/lib.sh` implements this as `dir_of`.
 - **`main` is the only baseline.** Features fork from `origin/main` and return by rebase
-  then fast-forward. `main` stays linear.
+  then a `--no-ff` merge. History is semi-linear: each feature is a straight run of
+  commits closed by one merge commit, and no feature branch contains merges of its own.
 - **`orchestrator` is an orphan branch.** No shared history with `main`, never merged
   into it, pushed to the remote as a backup.
 - **`local/` is a symlink in every worktree** to `../local`.

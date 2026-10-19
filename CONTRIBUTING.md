@@ -10,7 +10,8 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 ## Branches
 
 One feature per branch, named `feat/<name>` (or `fix/<name>`, `docs/<name>`). Branch from
-`main`. `main` only moves by fast-forward after a rebase, so keep your branch rebased and
+`main`. `main` only moves by `merge.sh`: it rebases your branch on `main`, then merges it
+with one merge commit (`--no-ff`), so history is semi-linear. Keep your branch rebased and
 do not merge `main` into it.
 
 If you use the worktree layout (`docs/infra/`), create the branch with:
