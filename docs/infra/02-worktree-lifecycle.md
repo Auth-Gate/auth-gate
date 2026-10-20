@@ -80,7 +80,7 @@ warnings as `warn: ...` and fatal errors as `error: ...` (exit 1).
 | `lib.sh` | sourced, not run | `wt_root` (find the root), `die`, `warn`, `step`, `dir_of` (branch to folder), `key_of` (path to Claude key), `bare_key`. Sets `BASE_BRANCH=main` and `CLAUDE_PROJECTS_DIR` (default `~/.claude/projects`). |
 | `init.sh` | `<repo-url> [<dir>]` | New workspace from a remote. `<dir>` defaults to the repo name. Bare clone, `.git` pointer, fetch refspec, `main` worktree, `orchestrator` worktree (orphan created from templates if the remote has none), `local/` and its symlinks, `.bare/claude`. |
 | `new.sh` | `<branch> [--from <branch>] [--no-install] [--push]` | New worktree. Uses an existing local branch, else tracks an existing `origin/<branch>`, else creates `<branch>` from `origin/<from>` (default `main`, no upstream). Symlinks `local`, runs `pnpm install` (skipped with `--no-install` or when there is no `package.json`), runs `claude-link.sh`. `--push` pushes and sets the upstream. |
-| `merge.sh` | `<branch> [--no-push]` | Refuses `main`, a missing worktree, a worktree not on `<branch>`, or uncommitted changes in either worktree. Fetches `origin`, fast-forwards `main` from its upstream, rebases `<branch>` on `main`, runs the gate, `merge --no-ff` into `main` (message `Merge branch '<branch>'`), pushes `main` (skipped with `--no-push`). |
+| `merge.sh` | `<branch> [--no-push]` | Refuses `main`, a missing worktree, a worktree not on `<branch>`, or uncommitted changes in either worktree. Fetches `origin`, fast-forwards `main` from its upstream, rebases `<branch>` on `main`, runs the gate, pushes the rebased `<branch>` with `--force-with-lease` if `origin/<branch>` exists (so `rm.sh` can delete it later without `--force`; stops if origin moved since the fetch), `merge --no-ff` into `main` (message `Merge branch '<branch>'`), pushes `main` (both pushes skipped with `--no-push`). |
 | `rm.sh` | `<branch> [--force]` | Refuses `main` and unknown branches. Without `--force`, refuses unless `<branch>` is merged into `main`. Removes the worktree (or prunes stale metadata if the folder is gone), deletes the local branch, deletes `origin/<branch>` if it is contained in `main` (always with `--force`), removes the Claude symlink. |
 | `status.sh` | none | `git worktree list`, ahead/behind `main` for every local branch, the BOARD table rows, and a warning if `orchestrator/.claude` differs from `main/.claude`. |
 | `claude-link.sh` | `<worktree-dir>` | Makes `~/.claude/projects/<worktree-key>` a symlink to `~/.claude/projects/<bare-key>`. Idempotent. Removes an empty real directory; moves a non-empty one to `<key>.bak-<yyyymmdd-hhmmss>` first. |
@@ -159,6 +159,7 @@ git -C <root> fetch origin
 git -C <root>/main pull --ff-only
 git -C <root>/feat-pin rebase main
 (cd <root>/feat-pin && pnpm run check)
+git -C <root>/feat-pin push --force-with-lease=feat/pin:<old origin/feat/pin> origin feat/pin  # only if origin/feat/pin exists
 git -C <root>/main merge --no-ff -m "Merge branch 'feat/pin'" feat/pin
 git -C <root>/main push origin main
 ```
