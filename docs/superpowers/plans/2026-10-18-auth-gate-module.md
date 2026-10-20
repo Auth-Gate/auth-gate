@@ -501,7 +501,7 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 
 - [x] **Step 1: Write the template and scripts; shellcheck is in the gate.**
 - [x] **Step 2: `sam validate --lint -t infra/template.yaml`** — Expected: valid. `pnpm run check` — green.
-- [ ] **Step 3: HUMAN — optionally `00-cert.sh`, then `01-ssm.sh`, `02-build.sh`, `03-deploy.sh` to stg (CloudFront takes 5–10 min). Record `BaseUrl` and `RawVerifyUrl` for the Bruno `stg` environment (Task 13). Check: `curl -i $RawVerifyUrl/api/nope` → 401; `curl -i $BaseUrl/.well-known/jwks.json` → 200.**
+- [x] **Step 3: HUMAN — optionally `00-cert.sh`, then `01-ssm.sh`, `02-build.sh`, `03-deploy.sh` to stg (CloudFront takes 5–10 min). Record `BaseUrl` and `RawVerifyUrl` for the Bruno `stg` environment (Task 13). Check: `curl -i $RawVerifyUrl/api/nope` → 401; `curl -i $BaseUrl/.well-known/jwks.json` → 200.**
 - [x] **Step 4: Commit** — `feat(infra): sam template with three least-privilege functions behind one cloudfront door`
 
 ---
@@ -518,7 +518,7 @@ curl -s -i localhost:8080/verify/api/nope           # 401 {"error":"unauthorized
 
 - [x] **Step 1: Write the collection; run it against `make dev` with `local.example.yml` copied to `local.yml`** — `cd bruno && npx -y @usebruno/cli run --env local --sandbox=developer` — Expected: all boundary requests fail as asserted, all others pass. If the CLI cannot read the OpenCollection YAML, record the exact error in the request docs and keep the collection for the Bruno app; the smoke then relies on `cmd/smoke` and a note in `04-smoke.sh`.
 - [x] **Step 2: Write `cmd/smoke` and run it against `make dev`** — Expected: `ok token verified` as last line, exit 0.
-- [ ] **Step 3: HUMAN — `04-smoke.sh` against stg.**
+- [x] **Step 3: HUMAN — `04-smoke.sh` against stg.**
 - [x] **Step 4: Commit** — `feat(bruno): integration collection and webauthn smoke`
 
 ---
