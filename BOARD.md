@@ -7,5 +7,6 @@
 | docs-verified | docs/verified | Record interactive verification results in docs/infra | merged | 2026-10-18-1810 | |
 | feat-auth-gate | feat/auth-gate | auth-gate module v1: Go, 3 roles behind one CloudFront URL, PIN + WebAuthn, KMS tokens, Bruno (round 2) | merged | 2026-10-20-1117 | spec+plan in handoffs/feat-auth-gate/; 15 tasks; subagent-driven |
 | feat-merge-commits | feat/merge-commits | merge.sh: --no-ff merge commits (semi-linear history) | merged | 2026-10-19-1037 | |
+| feat-rm-after-rebase | feat/rm-after-rebase | rm.sh: remove rebased+merged branches without --force | planned | - | brief in handoffs/feat-rm-after-rebase/ |
 
 Status values: planned, active, review, merged, abandoned.
