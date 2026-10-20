@@ -54,6 +54,15 @@ git -C "$root/$dir" rebase "$BASE_BRANCH" ||
 step "Running gate: $gate"
 (cd "$root/$dir" && eval "$gate")
 
+# Push the rebased branch first, so origin/<branch> is what gets merged and rm.sh can
+# later delete it without --force. The lease fails if someone pushed since our fetch.
+if [ "$push" = 1 ] && git -C "$root" show-ref --verify -q "refs/remotes/origin/$branch"; then
+  step "Pushing rebased $branch"
+  lease="$(git -C "$root" rev-parse "refs/remotes/origin/$branch")"
+  git -C "$root/$dir" push -q --force-with-lease="$branch:$lease" origin "$branch" ||
+    die "push of rebased $branch rejected: origin/$branch moved since the fetch; $BASE_BRANCH not merged"
+fi
+
 step "Merging $branch into $BASE_BRANCH"
 git -C "$main" merge -q --no-ff -m "Merge branch '$branch'" "$branch"
 

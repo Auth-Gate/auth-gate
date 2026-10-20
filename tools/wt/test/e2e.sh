@@ -180,6 +180,21 @@ inmain ./tools/wt/rm.sh feat/x >/dev/null || nok "rm: feat/x removal failed"
 assert "rm: worktree gone" test ! -e "$tmp/ws/feat-x"
 refute "rm: local branch gone" git -C "$tmp/ws/main" show-ref --verify --quiet refs/heads/feat/x
 assert "rm: claude link gone" test ! -e "$CLAUDE_PROJECTS_DIR/$(key_of "$tmp/ws/feat-x")" -a ! -L "$CLAUDE_PROJECTS_DIR/$(key_of "$tmp/ws/feat-x")"
+# a branch pushed before merge.sh rebased it must still go without --force
+inmain ./tools/wt/new.sh feat/r --no-install --push >/dev/null || nok "rm: feat/r setup failed"
+echo r >"$tmp/ws/feat-r/R"
+git -C "$tmp/ws/feat-r" add R
+git -C "$tmp/ws/feat-r" commit -qm "feat: r"
+git -C "$tmp/ws/feat-r" push -q
+echo m2 >"$tmp/ws/main/MAINCHANGE2"
+git -C "$tmp/ws/main" add MAINCHANGE2
+git -C "$tmp/ws/main" commit -qm "feat: main moves on again"
+inmain ./tools/wt/merge.sh feat/r >/dev/null || { nok "merge: feat/r merge failed"; cat "$tmp/inmain.err"; }
+assert "merge: rebased branch pushed" test "$(git -C "$tmp/ws/main" rev-parse origin/feat/r)" = "$(git -C "$tmp/ws/main" rev-parse HEAD^2)"
+inmain ./tools/wt/rm.sh feat/r >/dev/null || { nok "rm: rebased feat/r removal failed"; cat "$tmp/inmain.err"; }
+assert "rm rebased: worktree gone" test ! -e "$tmp/ws/feat-r"
+refute "rm rebased: local branch gone" git -C "$tmp/ws/main" show-ref --verify --quiet refs/heads/feat/r
+refute "rm rebased: remote branch gone" git -C "$tmp/ws/main" ls-remote --exit-code --heads origin feat/r
 rm -rf "$tmp/ws/feat-pushed" # deleted by hand, stale metadata remains
 inmain ./tools/wt/rm.sh feat/pushed --force >/dev/null || nok "rm --force: run failed"
 refute "rm --force: stale worktree pruned" bash -c "git -C '$tmp/ws/main' worktree list | grep -q feat-pushed"
