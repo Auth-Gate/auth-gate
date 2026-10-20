@@ -1,0 +1,42 @@
+info:
+  name: "Finish registration with garbage (400)"
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/webauthn/registrations/{{registrationId}}"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "credential": { "id": "AAAA", "rawId": "AAAA", "type": "public-key", "response": { "clientDataJSON": "AAAA", "attestationObject": "AAAA" } } }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("400 — not an attestation", function() {
+          expect(res.getStatus()).to.equal(400);
+        });
+
+        test("error is registration_failed", function() {
+          expect(res.getBody().error).to.equal("registration_failed");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Finishes the registration with an attestation that is not one.
+  **Expected: 400 `registration_failed`.**
+
+  For a real attestation see `go run ./cmd/smoke`. Harmless on prd.

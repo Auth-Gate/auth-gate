@@ -10,7 +10,7 @@ tooling; the module itself is round 2.
 - If `local/rules.md` exists, read it. It takes precedence over this file.
 - Commit only when asked. Use Conventional Commits.
 - Never push `main` directly. `tools/wt/merge.sh` does that, after the gate passes.
-- `pnpm run check` (lint, typecheck, test) must pass before you call work done.
+- `pnpm run check` (lint, shell tests, `make check`) must pass before you call work done.
 
 ## Workspace layout
 

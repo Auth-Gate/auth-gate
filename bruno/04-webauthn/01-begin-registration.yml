@@ -1,0 +1,52 @@
+info:
+  name: "Begin registration"
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/webauthn/registrations"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "subjectId": "{{subjectId}}", "displayName": "Bruno User" }
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.getStatus() === 201) bru.setVar("registrationId", res.getBody().registrationId);
+    - type: tests
+      code: |-
+        test("201 — options issued", function() {
+          expect(res.getStatus()).to.equal(201);
+        });
+
+        test("options carry this client's rpId and a challenge", function() {
+          const pk = res.getBody().publicKey;
+          expect(pk.rp.id).to.equal("localhost");
+          expect(pk.challenge).to.be.a("string").and.not.empty;
+          expect(pk.user.id).to.be.a("string").and.not.empty;
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Starts a passkey registration. **Expected: 201 `{registrationId, publicKey}`.**
+  Captures `registrationId`.
+
+  `publicKey` is the `PublicKeyCredentialCreationOptions` the client forwards
+  to its frontend unchanged. `rp.id` is the **client's** `rpId`; credentials
+  the subject already has are listed in `excludeCredentials`.
+
+  Harmless on prd: an unfinished registration expires.

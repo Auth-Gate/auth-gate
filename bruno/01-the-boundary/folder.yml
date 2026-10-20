@@ -1,0 +1,29 @@
+info:
+  name: The boundary
+  type: folder
+  seq: 1
+
+request: {}
+
+docs:
+  content: |-
+    ## Every request here is expected to FAIL
+
+    These are the requests to reach for when auth-gate is "not working". Each one
+    fails on purpose, and the failure is the design holding. A request in this
+    folder that *succeeds* is the bug.
+
+    | request | expected | why it matters |
+    | --- | --- | --- |
+    | no key / wrong key | **401** | the verify role has no anonymous route |
+    | client key on an admin route | **401** | a client backend cannot mint clients |
+    | `#` in an id | **400** `invalid_id` | keys are built by concatenation with `#` |
+    | replayed challenge | **410** `challenge_gone` | a challenge is single-use |
+    | another client's challenge | **410** `challenge_gone` | challenges are scoped to the client key |
+    | `/health` | **404** | there is no health endpoint |
+    | raw Function URL | **401** | only CloudFront carries `x-origin-verify` |
+
+    A few requests here are *setup* (they create a throwaway client and a PIN so the
+    failures have something real to fail against); those are expected to succeed
+    and say so in their names.
+  type: text/markdown

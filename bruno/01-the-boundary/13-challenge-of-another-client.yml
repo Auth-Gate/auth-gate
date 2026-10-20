@@ -1,0 +1,45 @@
+info:
+  name: "Another client's challenge (410)"
+  type: http
+  seq: 13
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/challenges/{{otherChallengeId}}/verify"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "pin": "482916" }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("410 — another client's challenge does not exist for you", function() {
+          expect(res.getStatus()).to.equal(410);
+        });
+
+        test("error is challenge_gone", function() {
+          expect(res.getBody().error).to.equal("challenge_gone");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Client **A** verifies client **B**'s challenge with the correct PIN.
+  **Expected: 410 `challenge_gone`.**
+
+  Challenges are stored under the calling client's key, so to client A the id
+  simply does not exist. A 200 here would mean one client could complete
+  another's step-up and get a token with the other client as `aud`.
+  Harmless on prd.

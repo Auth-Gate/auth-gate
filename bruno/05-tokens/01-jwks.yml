@@ -1,0 +1,43 @@
+info:
+  name: "Fetch JWKS"
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/.well-known/jwks.json"
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("200 — public", function() {
+          expect(res.getStatus()).to.equal(200);
+        });
+
+        test("EC P-256 keys for ES256", function() {
+          const keys = res.getBody().keys;
+          expect(keys).to.be.an("array").and.not.empty;
+          keys.forEach((k) => {
+            expect(k.kty).to.equal("EC");
+            expect(k.crv).to.equal("P-256");
+            expect(k.alg).to.equal("ES256");
+          });
+        });
+
+        test("cacheable for 300 s", function() {
+          expect(res.getHeader("cache-control")).to.include("max-age=300");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  The public key set. **Expected: 200 `{keys: [...]}`**, no credential, and
+  `Cache-Control: public, max-age=300`.
+
+  More than one key appears only during a signing-key rotation. Harmless on prd.

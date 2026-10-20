@@ -1,0 +1,19 @@
+info:
+  name: Clients
+  type: folder
+  seq: 2
+
+request: {}
+
+docs:
+  content: |-
+    ## Client registration (admin key)
+
+    A client is one integrating backend: a name, the WebAuthn `rpId` and `origins`
+    its passkeys are bound to, an optional PIN policy and a token TTL.
+
+    `01-create` captures `clientKey` and `clientId`. The key is shown **once**; only
+    its SHA-256 is stored, so a lost key means rotating (`03`), not recovering.
+
+    These requests all use `{{adminKey}}`, which never leaves an operator's hands.
+  type: text/markdown

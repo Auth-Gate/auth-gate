@@ -1,0 +1,43 @@
+info:
+  name: "Replayed challenge (410)"
+  type: http
+  seq: 9
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/challenges/{{challengeId}}/verify"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: X-Internal-Access-Key
+      value: "{{clientKey}}"
+  body:
+    type: json
+    data: |-
+      { "pin": "482916" }
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("410 — a challenge is single-use", function() {
+          expect(res.getStatus()).to.equal(410);
+        });
+
+        test("error is challenge_gone", function() {
+          expect(res.getBody().error).to.equal("challenge_gone");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Verifies the same challenge a second time, with the correct PIN.
+  **Expected: 410 `challenge_gone`.**
+
+  A challenge is single-use. If a replay worked, a captured verify request could
+  mint a fresh token for as long as the challenge lived. Harmless on prd.

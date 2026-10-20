@@ -1,0 +1,64 @@
+info:
+  name: "Verify the PIN token"
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/.well-known/jwks.json"
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const crypto = require("crypto");
+        const [h, p, s] = String(bru.getVar("token")).split(".");
+        const dec = (x) => JSON.parse(Buffer.from(x, "base64url").toString("utf8"));
+        const header = dec(h);
+        const jwk = (res.getBody().keys || []).find((k) => k.kid === header.kid);
+        let ok = false;
+        if (jwk && header.alg === "ES256") {
+          const key = crypto.createPublicKey({ key: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, format: "jwk" });
+          ok = crypto.verify("sha256", Buffer.from(h + "." + p), { key, dsaEncoding: "ieee-p1363" }, Buffer.from(s, "base64url"));
+        }
+        bru.setVar("tokenSignatureOk", ok);
+        bru.setVar("tokenClaims", JSON.stringify(dec(p)));
+    - type: tests
+      code: |-
+        test("200 — public", function() {
+          expect(res.getStatus()).to.equal(200);
+        });
+
+        test("signature checks against the key named by kid", function() {
+          expect(bru.getVar("tokenSignatureOk")).to.equal(true);
+        });
+
+        test("claims match the PIN verification", function() {
+          const c = JSON.parse(bru.getVar("tokenClaims"));
+          expect(c.aud).to.equal(bru.getVar("clientId"));
+          expect(c.sub).to.equal(bru.getEnvVar("subjectId"));
+          expect(c.purpose).to.equal("transfer");
+          expect(c.amr).to.deep.equal(["pin"]);
+          expect(c.iss).to.equal(String(bru.getEnvVar("baseUrl")).replace(/\/+$/, ""));
+          expect(c.exp * 1000).to.be.above(Date.now());
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Fetches JWKS and verifies `{{token}}` in an `after-response` script, the way a
+  consumer must. **Expected: 200**, a valid signature, `aud` = `{{clientId}}`,
+  `sub` = `{{subjectId}}`, `purpose` = `transfer`, `amr` = `["pin"]`, `iss` =
+  `{{baseUrl}}` and an unexpired `exp`.
+
+  `iss` is the base URL so `<iss>/.well-known/jwks.json` is the key set.
+  Harmless on prd.
+
+  The script uses node's `crypto`: in the Bruno app enable the developer
+  sandbox; on the CLI pass `--sandbox=developer` (the default safe sandbox
+  fails with `Cannot find module crypto`).

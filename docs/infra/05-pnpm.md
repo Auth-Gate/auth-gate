@@ -23,13 +23,7 @@ can have different dependencies.
 ```
 
 `packageManager` documents the version and is what CI's `pnpm/action-setup` reads.
-`pnpm-workspace.yaml` lists the workspace members:
-
-```yaml
-packages:
-  - packages/*
-  - apps/*
-```
+There is no pnpm workspace: pnpm only runs the shell tooling, and the Go module is built by `make`.
 
 `.npmrc` is committed with only a comment, so the place for a future setting is obvious.
 
@@ -68,9 +62,8 @@ merging into `main`, and CI runs it on every push to `main` and every pull reque
 ```json
 "scripts": {
   "lint": "shellcheck -x tools/wt/*.sh tools/wt/test/*.sh .claude/statusline.sh .claude/hooks/*.sh",
-  "typecheck": "pnpm -r --if-present run typecheck",
-  "test": "bash tools/wt/test/hooks.sh && bash tools/wt/test/e2e.sh && pnpm -r --if-present run test",
-  "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
+  "test": "bash tools/wt/test/hooks.sh && bash tools/wt/test/e2e.sh",
+  "check": "pnpm run lint && pnpm run test && make check"
 }
 ```
 
@@ -79,11 +72,9 @@ merging into `main`, and CI runs it on every push to `main` and every pull reque
   scripts by default, so the binary is downloaded the first time `lint` runs in each new
   worktree (a few `[INFO ] ShellCheck binary not found ... downloading` lines, then it is
   cached in that worktree's `node_modules`). This needs network access once per worktree.
-- `typecheck` and the package part of `test` use `pnpm -r --if-present`: each workspace
-  package that defines the script runs it; packages that do not are skipped. With no
-  packages yet, they succeed trivially.
-- `test` runs the two hermetic shell tests first: `hooks.sh` (statusline and hooks) and
+- `test` runs the two hermetic shell tests: `hooks.sh` (statusline and hooks) and
   `e2e.sh` (every `tools/wt` script against a throwaway remote in a temp folder).
+- `check` also runs `make check` (`go vet`, `golangci-lint run`, `go test`) for the Go module.
 
 The order is cheap to expensive, and `&&` stops at the first failure.
 
